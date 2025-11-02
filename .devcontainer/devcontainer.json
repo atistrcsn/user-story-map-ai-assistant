@@ -1,0 +1,26 @@
+{
+	"$schema": "https://raw.githubusercontent.com/devcontainers/spec/refs/heads/main/schemas/devContainer.base.schema.json",
+	"name": "Gitlab AI Assistant",
+	"dockerComposeFile": "docker-compose.yaml",
+	"service": "devcontainer",
+	"workspaceFolder": "/workspaces",
+	"features": {
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "latest"
+		},
+		"ghcr.io/skriptfabrik/devcontainer-features/gitlab-cli:1": {}
+	},
+	"postCreateCommand": "npm install -g @google/gemini-cli@latest",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"kilocode.kilo-code",
+				"usernamehw.errorlens",
+				"eamodio.gitlens",
+				"google.geminicodeassist",
+				"google.gemini-cli-vscode-ide-companion"
+			],
+			"settings": {}
+		}
+	}
+}

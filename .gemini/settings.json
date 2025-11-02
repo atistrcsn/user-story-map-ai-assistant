@@ -1,0 +1,33 @@
+{
+    "ide": {
+        "hasSeenNudge": true
+    },
+    "security": {
+        "auth": {
+            "selectedType": "oauth-personal"
+        }
+    },
+    "privacy": {
+        "usageStatisticsEnabled": false
+    },
+    "ui": {
+        "showStatusInTitle": true,
+        "hideTips": false,
+        "hideBanner": true,
+        "showMemoryUsage": true,
+        "showLineNumbers": true,
+        "useFullWidth": true,
+        "hideWindowTitle": false,
+        "accessibility": {
+            "disableLoadingPhrases": true
+        }
+    },
+    "mcpServers": {
+        "context7": {
+            "httpUrl": "https://mcp.context7.com/mcp",
+            "headers": {
+                "Accept": "application/json, text/event-stream"
+            }
+        }
+    }
+}

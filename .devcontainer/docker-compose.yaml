@@ -1,0 +1,12 @@
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../:/workspaces:cached
+    command: sleep infinity
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GITLAB_TOKEN=${GITLAB_PERSONAL_ACCESS_TOKEN}
+      - GITLAB_HOST=${GITLAB_HOST}
