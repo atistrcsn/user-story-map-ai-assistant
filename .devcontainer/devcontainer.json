@@ -4,6 +4,12 @@
 	"dockerComposeFile": "docker-compose.yaml",
 	"service": "devcontainer",
 	"workspaceFolder": "/workspaces",
+	"containerEnv": {
+		"GEMINI_SYSTEM_MD": "/home/vscode/.gemini/system.md"
+	},
+	"mounts": [
+		"source=${localEnv:HOME}/.gemini,target=/tmp/host-gemini,type=bind,consistency=cached"
+	],
 	"features": {
 		"ghcr.io/jsburckhardt/devcontainer-features/ruff:1": {},
 		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
@@ -14,6 +20,7 @@
 			"version": "latest"
 		}
 	},
+	"postStartCommand": "mkdir -p /home/vscode/.gemini && cp /tmp/host-gemini/system.md /home/vscode/.gemini/system.md && cp /tmp/host-gemini/GEMINI.md /home/vscode/.gemini/GEMINI.md",
 	"postCreateCommand": "npm install -g @google/gemini-cli@latest",
 	"customizations": {
 		"vscode": {
@@ -22,7 +29,11 @@
 				"usernamehw.errorlens",
 				"eamodio.gitlens",
 				"google.geminicodeassist",
-				"google.gemini-cli-vscode-ide-companion"
+				"google.gemini-cli-vscode-ide-companion",
+				"tamasfe.even-better-toml",
+				"ms-python.isort",
+				"ms-python.black-formatter",
+				"ms-python.vscode-pylance"
 			],
 			"settings": {
 				"google.gemini-cli.allowedShellCommands": [

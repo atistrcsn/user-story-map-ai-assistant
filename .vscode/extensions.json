@@ -1,6 +1,10 @@
 {
     "recommendations": [
         "google.geminicodeassist",
-        "google.gemini-cli-vscode-ide-companion"
+        "google.gemini-cli-vscode-ide-companion",
+        "tamasfe.even-better-toml",
+        "ms-python.isort",
+        "ms-python.black-formatter",
+        "ms-python.vscode-pylance"
     ]
 }
