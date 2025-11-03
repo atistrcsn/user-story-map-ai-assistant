@@ -5,6 +5,7 @@
         "tamasfe.even-better-toml",
         "ms-python.isort",
         "ms-python.black-formatter",
-        "ms-python.vscode-pylance"
+        "ms-python.vscode-pylance",
+        "the0807.uv-toolkit"
     ]
 }

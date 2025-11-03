@@ -1,0 +1,11 @@
+# GitLab Configuration
+# IMPORTANT: Do not commit this file to version control.
+
+# Your self-hosted GitLab instance URL
+GITLAB_URL = "https://gitlab.com"
+
+# Your GitLab Personal Access Token (with 'api' scope)
+PRIVATE_TOKEN = "glpat-sueprsecrettokenhere"
+
+# The project path or ID to sync
+PROJECT_PATH = "group/project"

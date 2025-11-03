@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run GitLab Sync",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/sync_gitlab.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/scripts",
+            "justMyCode": true
+        }
+    ]
+}

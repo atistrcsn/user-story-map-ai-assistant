@@ -62,3 +62,6 @@ pnpm-debug.log*
 .DS_Store
 *.pem
 
+# Custom app configuration
+scripts/config.py
+

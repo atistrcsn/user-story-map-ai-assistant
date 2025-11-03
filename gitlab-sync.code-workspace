@@ -1,0 +1,16 @@
+{
+    "folders": [
+        {
+            "name": "Project Root",
+            "path": "."
+        },
+        {
+            "name": "Python Scripts",
+            "path": "scripts"
+        }
+    ],
+    "settings": {
+        // It's a good practice to specify the default interpreter for the Python project folder.
+        "python.defaultInterpreterPath": "/workspaces/scripts/.venv/bin/python"
+    }
+}
