@@ -5,10 +5,14 @@
 	"service": "devcontainer",
 	"workspaceFolder": "/workspaces",
 	"features": {
+		"ghcr.io/jsburckhardt/devcontainer-features/ruff:1": {},
+		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
 		"ghcr.io/devcontainers/features/node:1": {
-			"version": "latest"
+			"version": "lts"
 		},
-		"ghcr.io/skriptfabrik/devcontainer-features/gitlab-cli:1": {}
+		"ghcr.io/devcontainers-extra/features/pnpm": {
+			"version": "latest"
+		}
 	},
 	"postCreateCommand": "npm install -g @google/gemini-cli@latest",
 	"customizations": {
@@ -20,7 +24,11 @@
 				"google.geminicodeassist",
 				"google.gemini-cli-vscode-ide-companion"
 			],
-			"settings": {}
+			"settings": {
+				"google.gemini-cli.allowedShellCommands": [
+					"glab"
+				]
+			}
 		}
 	}
 }

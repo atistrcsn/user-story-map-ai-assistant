@@ -1,5 +1,5 @@
 # Use the official Go image as our foundation.
-FROM mcr.microsoft.com/devcontainers/go:2-1.25-bookworm
+FROM mcr.microsoft.com/devcontainers/python:2-3.12-bookworm
 
 # Set environment variables to prevent interactive prompts during package installations.
 ENV DEBIAN_FRONTEND=noninteractive

@@ -1,0 +1,13 @@
+{
+  "project": {
+    "path": "hmedia/gitlab-ai-assistant"
+  },
+  "story_map": {
+    "directory": "docs/spec",
+    "labels": {
+      "backbone_prefix": "Backbone::",
+      "epic_type": "Type::Epic",
+      "story_type": "Type::Story"
+    }
+  }
+}

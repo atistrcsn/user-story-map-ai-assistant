@@ -6,6 +6,8 @@ services:
     volumes:
       - ../:/workspaces:cached
     command: sleep infinity
+    dns:
+      - 8.8.8.8
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GITLAB_TOKEN=${GITLAB_PERSONAL_ACCESS_TOKEN}
