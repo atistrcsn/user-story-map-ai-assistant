@@ -20,6 +20,7 @@ def _slugify(text):
     """Converts text to a URL-friendly slug."""
     text = re.sub(r'\s+', '-', text).lower()  # Replace spaces with hyphens and convert to lowercase
     text = re.sub(r'[^a-z0-9-]', '', text)  # Remove non-alphanumeric characters except hyphens
+    text = text.strip('-') # Remove leading/trailing hyphens
     return text
 
 def _get_issue_filepath(issue, base_output_dir):
@@ -31,8 +32,15 @@ def _get_issue_filepath(issue, base_output_dir):
     hierarchy_levels = []
     for level_name, dir_name in AGILE_HIERARCHY_MAP.items():
         for label in issue_labels:
-            if label.startswith(f"{level_name}:"):
-                hierarchy_levels.append((level_name, dir_name, label.split(':', 1)[1].strip()))
+            if level_name == "Epic" and label == "Type::Epic":
+                hierarchy_levels.append((level_name, dir_name, issue.title))
+                break
+            elif level_name == "Story" and label == "Type::Story":
+                hierarchy_levels.append((level_name, dir_name, issue.title))
+                break
+            elif label.startswith(f"{level_name}:"):
+                label_value = label.split(':', 1)[1].strip()
+                hierarchy_levels.append((level_name, dir_name, label_value))
                 break
     
     # If no hierarchy labels are found, place in _unassigned directory
