@@ -115,15 +115,14 @@ A kontextus-ellenőrzés mint minőségi kapu beépítése növeli a megbízhat�
 
 A projekt minőségének és megbízhatóságának biztosítása érdekében automatizált tesztek bevezetését javasoljuk a következő fázisban.
 
-### a. Egységtesztek (`parse_relationships` függvény)
+### a. Egységtesztek
 
-*   **Cél:** A `parse_relationships` függvény izolált tesztelése, amely kritikus a GitLab issue-k közötti kapcsolatok helyes azonosításához.
+*   **Cél:** Az `_slugify`, `_generate_markdown_content`, és `_get_issue_filepath` függvények izolált tesztelése, valamint a `parse_relationships` függvény (jövőbeli) tesztelése.
 *   **Tesztelési területek:**
-    *   `/blocking #<IID>` és `/blocked by #<IID>` minták helyes elemzése, a `source`, `target` és `type` attribútumok megfelelő hozzárendelésével.
-    *   Több kapcsolat kezelése egyetlen szövegblokkban.
-    *   Esetek kezelése, amikor nincsenek kapcsolatok.
-    *   Érvénytelen formátumok kezelése (pl. hiányzó IID).
-    *   Kis- és nagybetű érzéketlenség.
+    *   `_slugify`: Szöveg URL-barát slug-gá alakítása, speciális karakterek és szóközök kezelése.
+    *   `_generate_markdown_content`: Markdown tartalom generálása YAML frontmatterrel, különböző issue mezőkkel (hiányzó mezők is).
+    *   `_get_issue_filepath`: Fájlútvonal meghatározása issue címkék és hierarchia alapján, beleértve az `_unassigned` logikát és a Backbone, Epic, Story, Task címkeformátumok helyes kezelését.
+    *   `parse_relationships` (jövőbeli): A GitLab issue-k közötti kapcsolatok helyes azonosítása (`/blocking #<IID>` és `/blocked by #<IID>` minták).
 *   **Eszköz:** `pytest`.
 
 ### b. Integrációs tesztek (`sync map` parancs)

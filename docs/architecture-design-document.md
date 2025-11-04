@@ -55,7 +55,8 @@ graph TD
 │   ├── config.py            # GitLab API configuration (ignored by git)
 │   ├── pyproject.toml       # Python project dependencies (uv)
 │   ├── README.md            # Script usage instructions
-│   └── sync_gitlab.py       # Main synchronization script
+│   ├── sync_gitlab.py       # Main synchronization script
+│   └── tests/               # Unit and integration tests for scripts
 ├── docs/                    # Project documentation
 │   ├── architecture-design-document.md
 │   ├── backlog.md
@@ -63,5 +64,6 @@ graph TD
 │   ├── software-requirements-specification.md
 │   └── technical-design-document.md
 ├── README.md                # Top-level project overview
+├── GEMINI.md                # Project-specific Gemini rules and guidelines
 └── .gitignore               # Git ignore rules
 ```
