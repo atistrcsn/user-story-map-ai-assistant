@@ -65,6 +65,23 @@ pnpm-debug.log*
 # Custom app configuration
 scripts/config.py
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.whl
+*.egg
+*.sqlite3
+.ipynb_checkpoints/
+
 # Gemini CLI specific files
 /.gemini_context/
 /.gemini_cache/
