@@ -13,9 +13,15 @@ To provide a local, file-based representation of GitLab project management data,
 *   **GitLab Data Synchronization:**
     *   Connects to a self-hosted GitLab instance.
     *   Fetches issues, labels, and milestones from a specified project.
-    *   Transforms GitLab data into Markdown files with YAML frontmatter.
+    *   Transforms GitLab data into a local, file-based representation (Markdown files with YAML frontmatter).
     *   Organizes files into an agile hierarchy (Backbone, Epic, Story, Task) based on GitLab labels.
-    *   Supports one-way synchronization (GitLab to local filesystem).
+
+*   **AI-Assisted Feature Planning & Creation:**
+    *   Provides an interactive workflow for users to describe a new feature.
+    *   Analyzes the existing project context (code, docs, current issues) to propose a breakdown into new epics and stories.
+    *   Suggests dependency relationships between new and existing issues.
+    *   Generates local `.md` files for the new issues based on user confirmation.
+    *   Uploads the newly created entities (labels, issues, dependency comments) back to GitLab.
 
 *   **Local Data Storage:**
     *   Stores synchronized data in a well-defined, human-readable directory structure.
@@ -23,20 +29,21 @@ To provide a local, file-based representation of GitLab project management data,
 
 *   **Visualization (Future/Optional):**
     *   Integrates with an external tool (e.g., Obsidian) to visualize the synchronized data as a user story map or Kanban board.
-    *   Leverages the file-based structure for easy navigation and interaction.
 
 ## 4. Scope
 
 ### In Scope:
 
-*   Initial implementation of GitLab data synchronization.
+*   Initial implementation of GitLab data synchronization (read-only).
+*   AI-assisted workflow for creating new issues and their relationships.
+*   Uploading newly created entities (labels, issues, comments) to GitLab.
 *   Generation of Markdown files with YAML frontmatter.
 *   Directory structuring based on agile hierarchy labels.
 *   Basic setup for local development and execution.
 
 ### Out of Scope (for initial release):
 
-*   Two-way synchronization (local changes back to GitLab).
+*   Full, bidirectional synchronization of all fields on existing issues (e.g., editing an issue description locally and syncing it back). The write-back mechanism is only for creating new entities.
 *   Real-time synchronization (will be batch-based).
 *   Complex reporting or analytics within the tool itself.
 *   Built-in visualization component (will rely on external tools).

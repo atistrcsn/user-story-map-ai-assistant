@@ -13,7 +13,7 @@ The system is composed of two primary logical components:
 
 ## 3. Architectural Decisions
 
-*   **One-Way Synchronization:** To maintain simplicity and avoid complex conflict resolution, the synchronization will be strictly one-way (GitLab -> Local Filesystem).
+*   **Hybrid Synchronization Model:** The system is primarily based on a one-way sync (GitLab -> Local) for consuming and analyzing the project state. However, it includes a 'write-back' capability specifically for new entities (labels, issues, comments) generated via the AI assistant. This allows the tool to not just analyze but also contribute to the GitLab project, while avoiding the complexity of a full bidirectional sync.
 *   **File-Based Storage:** Markdown files with YAML frontmatter are chosen for their human-readability, version control friendliness, and compatibility with various text editors and knowledge management tools.
 *   **Python for Synchronization:** Python is selected due to its rich ecosystem, strong support for API interactions (`python-gitlab`), and rapid development capabilities.
 *   **`uv` and `pyproject.toml`:** For modern, efficient, and reproducible Python dependency and environment management.
@@ -23,7 +23,7 @@ The system is composed of two primary logical components:
 
 ```mermaid
 graph TD
-    A[GitLab CE Instance] -- API Calls --> B(GitLab Synchronization Module)
+    A[GitLab CE Instance] <-->|Read/Write API Calls| B(GitLab Synchronization Module)
     B -- Writes Markdown Files --> C[Local Filesystem]
     C -- Reads Markdown Files --> D(Visualization Module - e.g., Obsidian)
 ```

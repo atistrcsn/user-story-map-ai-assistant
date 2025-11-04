@@ -4,18 +4,19 @@ Ez a dokumentum a GitLab-alapú fejlesztési munkafolyamat támogatására terve
 
 ## 1. Architekturális Kockázatok Kezelése
 
-### a. Kontextus Méret és LLM Input Limit
+### a. Kontextus Kezelés és LLM Input Limit (Kétfázisú Elemzés)
 
-A "context summarizer" réteg beépítése kritikus a skálázódáshoz.
+A nagy méretű kontextus kezelése és az LLM token limitjének betartása érdekében egy kétfázisú elemzési stratégiát alkalmazunk.
 
-*   **Implementáció:** A szinkronizációs szkript kap egy `--summarize` opciót. Hosszú issue leírások esetén meghív egy (akár lokális, kisebb) LLM-et, hogy készítsen egy sűrített, kulcsszavakkal ellátott kivonatot.
-*   **Gyorsítótárazás:** A `/.gemini_cache/` könyvtárban minden issue IID-hez letároljuk az eredeti leírás hash-ét és a generált összefoglalót. A kivonatolás csak akkor fut le újra, ha a forrás hash megváltozik.
+*   **1. Fázis: Előszűrés:** Ahelyett, hogy a teljes kontextust egyből a fő LLM-nek adnánk, egy kisebb, gyorsabb modellt használunk a releváns információk kiszűrésére. Ez a modell megkapja a felhasználói kérést és a projektben lévő összes dokumentum/issue listáját (címekkel és rövid összefoglalókkal), majd visszaadja a legrelevánsabb 10-15 fájl listáját.
+*   **2. Fázis: Mélyelemzés:** A fő, nagy teljesítményű LLM már csak ezzel a szűkített, releváns kontextussal dolgozik, ami növeli a válaszok pontosságát és csökkenti a költségeket.
+*   **Automatikus Összefoglalás:** A szinkronizációs folyamat során a hosszú issue leírásokról és dokumentumokról a rendszer automatikusan rövid összefoglalókat generál és ezeket a `/.gemini_cache/` könyvtárban tárolja. Az előszűrési fázis elsősorban ezekkel a sűrített kivonatokkal dolgozik.
 
-### b. Kontextus Szinkronizálás
+### b. Intelligens Kontextus Szinkronizálás (Smart Sync)
 
-Az `updated_at` alapú inkrementális frissítés alapvető lesz a hatékonyság érdekében.
+A `create feature` parancs gyors és reszponzív működése érdekében a folyamat elején nem teljes, hanem "intelligens" szinkronizációt végzünk.
 
-*   **Implementáció:** A `/.gemini_cache/` fogja tárolni az issue-k metaadatait, beleértve a legutóbb látott `updated_at` időbélyeget. A szkript `--mode=map` futtatásakor először csak a metaadatokat kéri le a GitLab API-tól, összehasonlítja a cache-sel, és csak a megváltozott issue-k teljes tartalmát (kommentek, leírás) kéri le a függőségi gráf frissítéséhez. Ez drasztikusan csökkenti az API-hívások számát.
+*   **Implementáció:** A parancs indításakor a rendszer csak az issue-k `updated_at` időbélyegét kéri le a GitLab API-tól, összehasonlítja a `/.gemini_cache/`-ben tárolt állapottal, és csak a megváltozott issue-k teljes tartalmát tölti le újra. Ez biztosítja, hogy a kontextus naprakész legyen, de a várakozási idő minimális.
 
 ## 2. AI-munkafolyamat és Konzisztencia
 
@@ -59,6 +60,7 @@ A váltás YAML-ra indokolt az olvashatóság és a diffelhetőség miatt.
 
 *   **Implementáció:** A `project_map` fájl formátuma `yaml` lesz.
 *   **CLI Bővítés:** Létrehozunk egy egyszerű CLI eszközt (`gemini-cli`) a rendszer kezelésére:
+    *   `gemini-cli create feature`: Interaktív munkafolyamatot indít egy új funkció megtervezésére. A parancs az optimalizált, "Enhanced Workflow"-t követi: 1. Smart Sync. 2. Felhasználói bevitel. 3. Kétfázisú AI analízis. 4. Strukturált, lépésenkénti párbeszéd a jóváhagyáshoz. 5. Lokális fájlok generálása. 6. Robusztus, tranzakciószerű visszatöltés a GitLab-re.
     *   `gemini-cli sync map`: Frissíti a `project_map.yaml`-t a cache alapján. **Tervezett:** Lekéri a GitLab issue-kat, elemzi a leírásokat és kommenteket a `/blocked by #<IID>` és `/blocking #<IID>` minták alapján, `networkx` gráffá alakítja, és egyedi linkekkel menti a `project_map.yaml` fájlba.
     *   `gemini-cli sync fetch --iid 123 --depth 2`: Letölti a fókuszált kontextust.
     *   `gemini-cli query "Melyik issue-k blokkolják a #123-at?`: Lekérdezéseket futtat a `project_map.yaml` alapján.
@@ -105,9 +107,16 @@ A kontextus-ellenőrzés mint minőségi kapu beépítése növeli a megbízhat�
 
 *   **Implementáció:** A CI pipeline (pl. GitLab CI) minden `merge_request` eseményre lefut. Egy `verify_context` nevű job meghívja a `gemini-cli sync map --fail-on-stale` parancsot. Ha a MR-ben érintett issue-k a `project_map.yaml`-ban elavultak, a pipeline hibával leáll.
 
+### c. Robusztus Feltöltés Kezelés
+
+A GitLab-re történő visszatöltés hibatűrése kritikusan fontos, hogy a rendszer ne kerüljön inkonzisztens állapotba.
+
+*   **API Lassítás (Throttling):** A feltöltő szkriptnek egy minimális (pl. 100-200ms) várakozást kell beiktatnia az API hívások közé a rate limit elkerülése érdekében.
+*   **Tranzakciós Logika és Rollback:** A feltöltési folyamat naplózza a tervezett lépéseket. Hiba esetén megpróbálja visszavonni a már végrehajtott műveleteket (pl. letörli a sikeresen létrehozott, de függőségekkel még el nem látott issue-kat), vagy egyértelmű riportot ad a felhasználónak a manuális helyreállításhoz.
+
 ## 6. Továbbgondolható Fejlesztési Irányok
 
-*   **Vector Store Integráció:** A `/.gemini_cache/` kiegészíthető egy lokális vector store-ral (pl. ChromaDB) a szemantikus kereséshez.
+*   **Vector Store Integráció:** A `/.gemini_cache/` kiegészíthető egy lokális vector store-ral (pl. ChromaDB) a szemantikus kereséshez. **Megjegyzés:** Ez egy jövőbeli, opcionális fejlesztés. A kezdeti implementáció a 1.a pontban leírt, LLM-alapú előszűrést alkalmazza.
 *   **Natural Language Query:** A `gemini-cli query` parancs fejleszthető, hogy természetes nyelvi kérdéseket LLM segítségével gráf-lekérdezéssé alakítson.
 *   **Adaptive Depth Fetch:** A `--depth` paraméter viselkedése lehet adaptív, a csomópont központisága alapján.
 
