@@ -59,7 +59,7 @@ A váltás YAML-ra indokolt az olvashatóság és a diffelhetőség miatt.
 
 *   **Implementáció:** A `project_map` fájl formátuma `yaml` lesz.
 *   **CLI Bővítés:** Létrehozunk egy egyszerű CLI eszközt (`gemini-cli`) a rendszer kezelésére:
-    *   `gemini-cli sync map`: Frissíti a `project_map.yaml`-t a cache alapján. **Implementálva:** Lekéri a GitLab issue-kat, elemzi a leírásokat és kommenteket a `/blocked by #<IID>` és `/blocking #<IID>` minták alapján, `networkx` gráffá alakítja, és egyedi linkekkel menti a `project_map.yaml` fájlba.
+    *   `gemini-cli sync map`: Frissíti a `project_map.yaml`-t a cache alapján. **Tervezett:** Lekéri a GitLab issue-kat, elemzi a leírásokat és kommenteket a `/blocked by #<IID>` és `/blocking #<IID>` minták alapján, `networkx` gráffá alakítja, és egyedi linkekkel menti a `project_map.yaml` fájlba.
     *   `gemini-cli sync fetch --iid 123 --depth 2`: Letölti a fókuszált kontextust.
     *   `gemini-cli query "Melyik issue-k blokkolják a #123-at?`: Lekérdezéseket futtat a `project_map.yaml` alapján.
 

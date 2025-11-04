@@ -19,6 +19,10 @@ This document serves as a living backlog for all tasks, features, and implementa
     *   Implement functions for generating Markdown content with YAML frontmatter for issues.
     *   Integrate file writing logic into the `main` function.
     *   Add optional `gitlab_data` directory cleanup before sync.
+*   **Implement Project Map Generation:**
+    *   Parse issue descriptions for `/blocked by #<IID>` and `/blocking #<IID>` patterns.
+    *   Use `networkx` to build a dependency graph.
+    *   Save the graph in `node-link` format to `project_map.yaml`.
 *   **Handle Unassigned Issues:** Place issues without hierarchy labels into a dedicated `_unassigned` directory.
 
 ## Current Development
