@@ -1,81 +1,135 @@
-# Technical Design Document (TDD)
+# Finomított Terv 2.0: Intelligens Fejlesztési Kontextus Menedzsment Rendszer
 
-## 1. Introduction
+Ez a dokumentum a GitLab-alapú fejlesztési munkafolyamat támogatására tervezett intelligens kontextusmenedzsment rendszer részletes műszaki tervét írja le. A terv a kezdeti ötletelés során felmerült javaslatok és finomítások alapján készült.
 
-This document details the implementation plan for the GitLab Synchronization Module, outlining the technical choices and step-by-step execution.
+## 1. Architekturális Kockázatok Kezelése
 
-## 2. Technology Stack
+### a. Kontextus Méret és LLM Input Limit
 
-*   **Language:** Python 3.x
-*   **GitLab API Client:** `python-gitlab` library
-*   **Dependency Management:** `uv` with `pyproject.toml`
-*   **Configuration:** Python module (`config.py`) for sensitive data.
-*   **Output Format:** Markdown files with YAML frontmatter.
+A "context summarizer" réteg beépítése kritikus a skálázódáshoz.
 
-## 3. Module Design: `sync_gitlab.py`
+*   **Implementáció:** A szinkronizációs szkript kap egy `--summarize` opciót. Hosszú issue leírások esetén meghív egy (akár lokális, kisebb) LLM-et, hogy készítsen egy sűrített, kulcsszavakkal ellátott kivonatot.
+*   **Gyorsítótárazás:** A `/.gemini_cache/` könyvtárban minden issue IID-hez letároljuk az eredeti leírás hash-ét és a generált összefoglalót. A kivonatolás csak akkor fut le újra, ha a forrás hash megváltozik.
 
-### 3.1. Configuration Loading
+### b. Kontextus Szinkronizálás
 
-*   The script will import `config.py` to access `GITLAB_URL`, `PRIVATE_TOKEN`, and `PROJECT_PATH`.
+Az `updated_at` alapú inkrementális frissítés alapvető lesz a hatékonyság érdekében.
 
-### 3.2. GitLab API Connection
+*   **Implementáció:** A `/.gemini_cache/` fogja tárolni az issue-k metaadatait, beleértve a legutóbb látott `updated_at` időbélyeget. A szkript `--mode=map` futtatásakor először csak a metaadatokat kéri le a GitLab API-tól, összehasonlítja a cache-sel, és csak a megváltozott issue-k teljes tartalmát (kommentek, leírás) kéri le a függőségi gráf frissítéséhez. Ez drasztikusan csökkenti az API-hívások számát.
 
-*   Utilize `gitlab.Gitlab(url, private_token)` to establish a connection.
-*   Perform `gl.auth()` to verify credentials.
+## 2. AI-munkafolyamat és Konzisztencia
 
-### 3.3. Project Retrieval
+### a. Tudásrétegek Keveredése
 
-*   Use `gl.projects.get(config.PROJECT_PATH)` to retrieve the target GitLab project object.
+A `GEMINI.md` verziózása és a commit hash beemelése a kontextusba biztosítja a reprodukálhatóságot.
 
-### 3.4. Data Fetching
+*   **Implementáció:** A `project_map.yaml` gyökerében lesz egy `doctrine` szekció, ami tartalmazza a `GEMINI.md` fájl elérési útját és a `git rev-parse HEAD:path/to/GEMINI.md` paranccsal kinyert commit hash-t. Az LLM prompt expliciten megkapja ezt az információt.
 
-*   Fetch all issues: `project.issues.list(all=True)`.
-*   Fetch all labels: `project.labels.list(all=True)`.
-*   Fetch all milestones: `project.milestones.list(all=True)`.
+### b. Story–Epic–Task Láncolat
 
-### 3.5. Agile Hierarchy Mapping
+A gráf-adatszerkezet és a paraméterezhető mélység elengedhetetlen a komplex függőségek kezeléséhez.
 
-*   A dictionary or similar structure will map specific GitLab labels (e.g., "Backbone", "Epic", "Story", "Task") to their corresponding directory names and hierarchical levels.
+*   **Implementáció:** A Python szkript a `networkx` könyvtárat fogja használni a függőségi gráf memóriában történő felépítésére.
+*   **Adatformátum:** A `project_map.yaml` a gráfot `node-link` formátumban fogja tárolni:
+    ```yaml
+    nodes:
+      - id: 123
+        title: "User Login"
+        type: "Story"
+    links:
+      - source: 123
+        target: 456
+        type: "blocks"
+    ```
+*   **CLI:** A szkript kap egy `--depth=N` paramétert a fókuszált kontextus letöltéséhez, ami a gráfból N szint mélységig gyűjti ki a releváns issue-kat.
 
-### 3.6. File Path Generation
+## 3. Implementációs Részletek
 
-*   A function will determine the output file path for each issue based on its assigned labels and the defined hierarchy.
-*   Example: An issue with labels "Backbone: Feature A", "Epic: Sub-feature B", "Story: User Story C" might map to `gitlab_data/backbones/feature-a/epics/sub-feature-b/stories/user-story-c.md`.
+### a. Fájlstruktúra
 
-### 3.7. Markdown Content Generation
+A háromrétegű struktúrát teljes mértékben adoptáljuk:
+*   `/docs/spec/`: Statikus, verziókezelt dokumentáció (pl. `GEMINI.md`).
+*   `/.gemini_context/`: Dinamikus, futásidejű kontextus. Minden futtatáskor tisztul és újraépül.
+*   `/.gemini_cache/`: Perzisztens, de eldobható gyorsítótár az API-hívások minimalizálására.
+*   A `.gitignore` fájlba a `/.gemini_context/` és `/.gemini_cache/` könyvtárak bekerülnek.
 
-*   A function will construct the YAML frontmatter for each issue, including fields like:
-    *   `id`: GitLab Issue IID
-    *   `title`: Issue Title
-    *   `type`: GitLab Issue Type (e.g., 'issue', 'task')
-    *   `state`: Issue State (opened, closed)
-    *   `labels`: List of assigned labels
-    *   `milestone`: Milestone title (if any)
-    *   `assignee`: Assignee username (if any)
-    *   `due_date`: Due date (if any)
-    *   `created_at`: Creation timestamp
-    *   `updated_at`: Last update timestamp
-    *   `web_url`: Link to the GitLab issue
-*   The issue description will follow the YAML frontmatter.
+### b. Adat-reprezentáció
 
-### 3.8. File Writing
+A váltás YAML-ra indokolt az olvashatóság és a diffelhetőség miatt.
 
-*   The script will iterate through all fetched issues.
-*   For each issue, it will generate the file path and Markdown content.
-*   It will ensure that the target directories exist (using `os.makedirs(..., exist_ok=True)`).
-*   It will write the content to the determined file path.
+*   **Implementáció:** A `project_map` fájl formátuma `yaml` lesz.
+*   **CLI Bővítés:** Létrehozunk egy egyszerű CLI eszközt (`gemini-cli`) a rendszer kezelésére:
+    *   `gemini-cli sync map`: Frissíti a `project_map.yaml`-t a cache alapján. **Implementálva:** Lekéri a GitLab issue-kat, elemzi a leírásokat és kommenteket a `/blocked by #<IID>` és `/blocking #<IID>` minták alapján, `networkx` gráffá alakítja, és egyedi linkekkel menti a `project_map.yaml` fájlba.
+    *   `gemini-cli sync fetch --iid 123 --depth 2`: Letölti a fókuszált kontextust.
+    *   `gemini-cli query "Melyik issue-k blokkolják a #123-at?`: Lekérdezéseket futtat a `project_map.yaml` alapján.
 
-### 3.9. `gitlab_data` Directory Cleanup
+## 4. AI Stratégiai Működése
 
-*   Before starting the synchronization, the script will optionally clear the contents of the `gitlab_data` directory to ensure a clean sync.
+### a. Kontextus-keverés Veszélye
 
-## 4. Error Handling
+A prompt higiénia kulcsfontosságú.
 
-*   Implement `try-except` blocks for API calls and file operations.
-*   Provide informative error messages to the console.
+*   **Implementáció:** A `/.gemini_context/current_task` mappa minden `fetch` parancs előtt törlésre kerül.
+*   **Prompt Struktúra:** Minden prompt expliciten tagolt lesz Markdown kommentekkel:
+    ```markdown
+    <!-- DOCTRINE (GEMINI.md @ hash) -->
+    ...
+    <!-- GLOBAL MAP CONTEXT -->
+    ...
+    <!-- FOCUSED TASK CONTEXT (IID: #123) -->
+    ...
+    <!-- SOURCE CODE CONTEXT -->
+    ...
+    <!-- MY INSTRUCTION -->
+    ...
+    ```
 
-## 5. Future Considerations
+### b. Prompt Controllability
 
-*   Incremental synchronization (only update changed issues).
-*   More sophisticated label-to-hierarchy mapping.
-*   Support for other GitLab entities (e.g., Merge Requests).
+A `/.gemini_prompts/` könyvtár bevezetése szabványosítja és skálázhatóvá teszi a rendszert.
+
+*   **Implementáció:** Létrehozzuk a `/.gemini_prompts/` könyvtárat, olyan sablonokkal, mint:
+    *   `planning.prompt`: A következő feladat stratégiai kiválasztásához.
+    *   `implementation_plan.prompt`: Egy adott story technikai tervének elkészítéséhez.
+    *   `code_review.prompt`: Merge requestek AI-alapú véleményezéséhez.
+
+## 5. Biztonság és CI/CD Integráció
+
+### a. Token Security
+
+*   **Implementáció:** A szkript a `python-dotenv` könyvtárat használja a `.env` fájl beolvasásához. A CI/CD környezetben a tokent a pipeline "secrets" vagy "variables" tárolójából kell injektálni környezeti változóként.
+
+### b. CI/CD Horgonyzás
+
+A kontextus-ellenőrzés mint minőségi kapu beépítése növeli a megbízhatóságot.
+
+*   **Implementáció:** A CI pipeline (pl. GitLab CI) minden `merge_request` eseményre lefut. Egy `verify_context` nevű job meghívja a `gemini-cli sync map --fail-on-stale` parancsot. Ha a MR-ben érintett issue-k a `project_map.yaml`-ban elavultak, a pipeline hibával leáll.
+
+## 6. Továbbgondolható Fejlesztési Irányok
+
+*   **Vector Store Integráció:** A `/.gemini_cache/` kiegészíthető egy lokális vector store-ral (pl. ChromaDB) a szemantikus kereséshez.
+*   **Natural Language Query:** A `gemini-cli query` parancs fejleszthető, hogy természetes nyelvi kérdéseket LLM segítségével gráf-lekérdezéssé alakítson.
+*   **Adaptive Depth Fetch:** A `--depth` paraméter viselkedése lehet adaptív, a csomópont központisága alapján.
+
+## 7. Tesztelési Stratégia
+
+A projekt minőségének és megbízhatóságának biztosítása érdekében automatizált tesztek bevezetését javasoljuk a következő fázisban.
+
+### a. Egységtesztek (`parse_relationships` függvény)
+
+*   **Cél:** A `parse_relationships` függvény izolált tesztelése, amely kritikus a GitLab issue-k közötti kapcsolatok helyes azonosításához.
+*   **Tesztelési területek:**
+    *   `/blocking #<IID>` és `/blocked by #<IID>` minták helyes elemzése, a `source`, `target` és `type` attribútumok megfelelő hozzárendelésével.
+    *   Több kapcsolat kezelése egyetlen szövegblokkban.
+    *   Esetek kezelése, amikor nincsenek kapcsolatok.
+    *   Érvénytelen formátumok kezelése (pl. hiányzó IID).
+    *   Kis- és nagybetű érzéketlenség.
+*   **Eszköz:** `pytest`.
+
+### b. Integrációs tesztek (`sync map` parancs)
+
+*   **Cél:** A teljes `sync map` pipeline (GitLab API lekérés, elemzés, gráfépítés, YAML kimenet) helyes működésének ellenőrzése, élő GitLab példány nélkül.
+*   **Tesztelési területek:**
+    *   A `project_map.yaml` fájl generálásának ellenőrzése a várt struktúrával.
+    *   A generált `nodes` és `links` tartalmának ellenőrzése egy előre definiált mock GitLab adatkészlet alapján.
+*   **Eszköz:** `pytest` a `unittest.mock` vagy `pytest-mock` segítségével a GitLab API hívások mockolásához.

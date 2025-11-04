@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/devcontainers/spec/refs/heads/main/schemas/devContainer.base.schema.json",
-	"name": "Gitlab AI Assistant",
+	"name": "Gitlab AI Assistant", 
 	"dockerComposeFile": "docker-compose.yaml",
 	"service": "devcontainer",
 	"workspaceFolder": "/workspaces",

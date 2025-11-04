@@ -65,3 +65,8 @@ pnpm-debug.log*
 # Custom app configuration
 scripts/config.py
 
+# Gemini CLI specific files
+/.gemini_context/
+/.gemini_cache/
+/.gemini_prompts/
+
