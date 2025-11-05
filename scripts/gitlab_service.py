@@ -2,6 +2,7 @@ import os
 import re
 import gitlab
 import json
+import networkx as nx
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -16,7 +17,6 @@ def get_gitlab_client():
     gitlab_private_token = os.getenv("GITLAB_PRIVATE_TOKEN")
 
     if not gitlab_url or not gitlab_private_token:
-        # In a service, we should raise an exception rather than exit
         raise ValueError("Error: GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set.")
 
     try:
@@ -24,20 +24,15 @@ def get_gitlab_client():
         gl.auth()
         return gl
     except gitlab.exceptions.GitlabError as e:
-        # Let the caller handle the exception
         raise ConnectionError(f"Error connecting to GitLab: {e}") from e
 
 def parse_relationships(current_issue_iid: int, text: str) -> list[dict]:
-    """Parses text to find GitLab issue relationships (e.g., '/blocked by #<IID>', '/blocking #<IID>')."""
     relationships = []
-
-    # Pattern for /blocking #<IID>
     blocking_pattern = re.compile(r"/blocking\s+#(\d+)", re.IGNORECASE)
     for match in blocking_pattern.finditer(text):
         target_iid = int(match.group(1))
         relationships.append({"source": current_issue_iid, "target": target_iid, "type": "blocks"})
 
-    # Pattern for /blocked by #<IID>
     blocked_by_pattern = re.compile(r"/blocked by\s+#(\d+)", re.IGNORECASE)
     for match in blocked_by_pattern.finditer(text):
         source_iid = int(match.group(1))
@@ -46,11 +41,6 @@ def parse_relationships(current_issue_iid: int, text: str) -> list[dict]:
     return relationships
 
 def smart_sync() -> dict:
-    """
-    Performs an intelligent synchronization of GitLab issues.
-    Only fetches issues that have been updated since the last sync.
-    Returns a dictionary with the sync status and updated issues.
-    """
     try:
         gl = get_gitlab_client()
         project_id = os.getenv("GITLAB_PROJECT_ID")
@@ -69,7 +59,6 @@ def smart_sync() -> dict:
             try:
                 last_timestamps = json.load(f)
             except json.JSONDecodeError:
-                # If cache is corrupt, we'll just perform a full sync
                 pass
 
     all_issues_from_gitlab = project.issues.list(all=True, as_list=False)
@@ -95,3 +84,54 @@ def smart_sync() -> dict:
         "updated_issues": updated_issues,
         "total_issues": len(current_timestamps)
     }
+
+def build_project_map() -> dict:
+    try:
+        gl = get_gitlab_client()
+        project_id = os.getenv("GITLAB_PROJECT_ID")
+        if not project_id:
+            raise ValueError("Error: GITLAB_PROJECT_ID must be set.")
+        project = gl.projects.get(project_id)
+    except (ValueError, ConnectionError) as e:
+        return {"status": "error", "message": str(e)}
+
+    issues = project.issues.list(all=True)
+    
+    nodes_data = []
+    links_data = []
+    unique_links_set = set()
+
+    for issue in issues:
+        node = {
+            "id": issue.iid,
+            "title": issue.title,
+            "type": "Issue",
+            "state": issue.state,
+            "web_url": issue.web_url,
+            "labels": issue.labels,
+        }
+        nodes_data.append(node)
+
+        # Parse relationships from description and comments
+        all_text_to_parse = [issue.description or ""]
+        for comment in issue.notes.list(all=True):
+            all_text_to_parse.append(comment.body)
+
+        for text in all_text_to_parse:
+            found_relationships = parse_relationships(issue.iid, text)
+            for rel in found_relationships:
+                link_tuple = (rel["source"], rel["target"], rel["type"])
+                if link_tuple not in unique_links_set:
+                    unique_links_set.add(link_tuple)
+                    links_data.append(rel)
+
+    project_map_data = {
+        "doctrine": {
+            "gemini_md_path": "/docs/spec/GEMINI.md",
+            "gemini_md_commit_hash": "TODO"
+        },
+        "nodes": nodes_data,
+        "links": links_data
+    }
+    
+    return {"status": "success", "map_data": project_map_data, "issues_found": len(issues)}

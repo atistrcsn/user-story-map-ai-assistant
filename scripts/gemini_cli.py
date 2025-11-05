@@ -15,8 +15,18 @@ app.add_typer(sync_app, name="sync", help="Synchronize data from GitLab.")
 def sync_map():
     """Synchronize GitLab issues and build the project map."""
     typer.echo("Starting GitLab synchronization to build project map...")
-    # This will also be refactored to use the service layer.
-    typer.echo("Sync map logic not yet refactored.")
+    
+    result = gitlab_service.build_project_map()
+
+    if result["status"] == "error":
+        typer.secho(f"Error building project map: {result['message']}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    map_data = result["map_data"]
+    with open(PROJECT_MAP_PATH, 'w') as f:
+        yaml.dump(map_data, f, sort_keys=False)
+
+    typer.secho(f"Project map successfully built with {result['issues_found']} issues and saved to {PROJECT_MAP_PATH}.", fg=typer.colors.GREEN)
 
 @app.command("create")
 def create_feature(
@@ -29,17 +39,17 @@ def create_feature(
     
     # Step 1: Smart Sync, handled by the service layer
     typer.echo("Performing smart sync with GitLab...")
-    result = gitlab_service.smart_sync()
+    sync_result = gitlab_service.smart_sync()
 
-    if result["status"] == "error":
-        typer.secho(f"Error during sync: {result['message']}", fg=typer.colors.RED)
+    if sync_result["status"] == "error":
+        typer.secho(f"Error during sync: {sync_result['message']}", fg=typer.colors.RED)
         raise typer.Exit(1)
 
-    if result["updated_count"] == 0:
-        typer.secho(f"Project is up-to-date. Total issues: {result['total_issues']}.", fg=typer.colors.GREEN)
+    if sync_result["updated_count"] == 0:
+        typer.secho(f"Project is up-to-date. Total issues: {sync_result['total_issues']}.", fg=typer.colors.GREEN)
     else:
-        typer.echo(f"Sync complete. Found {result['updated_count']} new or updated issues:")
-        for issue in result["updated_issues"]:
+        typer.echo(f"Sync complete. Found {sync_result['updated_count']} new or updated issues:")
+        for issue in sync_result["updated_issues"]:
             typer.echo(f"  - Fetched updated issue #{issue['iid']}: {issue['title']}")
 
     typer.echo("\nAI analysis and dialogue steps are not yet implemented.")
