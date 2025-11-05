@@ -57,3 +57,24 @@ Optional. Can contain information about breaking changes or reference issues by 
 
 *   `BREAKING CHANGE:`: Indicates a breaking API change.
 *   `Closes #<issue-number>`: References an issue that the commit closes.
+
+## Holistic Implementation Mandate
+
+To ensure all implementation work is strictly aligned with both a pre-approved plan and the project's high-level goals, you MUST follow this protocol before using any file-modifying tools.
+
+You are **FORBIDDEN** from starting implementation until you have completed and confirmed the following steps in order:
+
+1.  **Acknowledge the Mandate:** Verbally confirm that you are initiating the Holistic Implementation Mandate.
+
+2.  **Identify the Primary Plan:** Ask the user to provide the **exact, absolute path** to the primary feature specification document (e.g., `/workspaces/docs/feature-ai-story-map-creation.md`).
+
+3.  **Load the Primary Plan:** Use the `read_file` tool to load the content of the primary plan document.
+
+4.  **Perform Context Enrichment:**
+    *   Analyze the content of the loaded **Primary Plan**.
+    *   Based on this analysis, identify the 3-5 most relevant high-level documents from the `/docs` directory that provide architectural and requirement context (e.g., `architecture-design-document.md`, `product-requirements-document.md`).
+    *   Verbally confirm with the user which supporting documents you have identified as most relevant.
+
+5.  **Load the Full Context:** Use the `read_many_files` tool to load the **Primary Plan** AND the identified supporting documents from the `/docs` directory into your active context in a single operation.
+
+6.  **Confirm and Commit:** State that you have successfully loaded the full context (the primary plan and its supporting documents). Confirm that all subsequent implementation steps will be guided by this **complete, holistic context**.
