@@ -9,3 +9,13 @@ dependencies = [
     "python-dotenv",
     "networkx"
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mock",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
