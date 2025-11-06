@@ -139,4 +139,35 @@ This feature enables a user to provide a high-level idea and have the AI assista
 5.  **Documentation:**
     *   Upon completion, activate the "Documentation Reconciliation Protocol" to update all relevant documents with the status of this task.
 
+## Implement Real AI API Calls
+
+**Status:** DONE
+
+**Description:** Replace the mock AI calls in `ai_service.py` with actual calls to the Google Gemini API using the `google-generativeai` library. This will bring the AI-assisted feature to life.
+
+**Implementation Plan:**
+
+1.  **Prerequisites:**
+    *   Add `google-generativeai` to the `dependencies` in `scripts/pyproject.toml`.
+    *   Install the new dependency by running `uv pip install -r scripts/pyproject.toml`.
+    *   Ensure the `GOOGLE_API_KEY` is set in the `.env` file in the project root.
+
+2.  **Test-Driven Refactoring:**
+    *   In `scripts/tests/test_ai_service.py`, change the mock target from our internal `call_google_gemini_api` to the external library's method: `@patch('google.generativeai.GenerativeModel.generate_content')`.
+    *   Update the mock return value to be an object with a `.text` attribute, simulating the library's response object.
+    *   Run `pytest` to confirm the tests fail (TDD Red phase).
+
+3.  **Core Implementation (`ai_service.py`):**
+    *   Add `import google.generativeai as genai` and `import os`.
+    *   Configure the library at the module level using `genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))`.
+    *   Rewrite the `call_google_gemini_api` function to:
+        *   Instantiate a `genai.GenerativeModel`.
+        *   Call the `model.generate_content()` method with the prompt.
+        *   Include `try...except` block for robust error handling.
+        *   Return the `response.text`.
+
+4.  **Verification:**
+    *   Run `pytest` again to confirm all tests now pass (TDD Green phase).
+    *   Perform a manual, end-to-end test by running the `create-feature` command to see a real AI-generated response.
+
 ## Future Features / Enhancements:

@@ -9,10 +9,16 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Module-level constants
-CACHE_DIR = ".gemini_cache"
+# --- Absolute Path Definitions ---
+# Define the project root by going up one level from the script's directory (/scripts)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+# Define absolute paths for data and cache directories
+CACHE_DIR = os.path.join(PROJECT_ROOT, ".gemini_cache")
 TIMESTAMPS_CACHE_PATH = os.path.join(CACHE_DIR, "timestamps.json")
-DATA_DIR = "gitlab_data"
+DATA_DIR = os.path.join(PROJECT_ROOT, "gitlab_data")
+# --- End of Path Definitions ---
 
 def _slugify(text):
     """Convert text to a URL-friendly slug."""
@@ -21,34 +27,67 @@ def _slugify(text):
     text = re.sub(r'--+', '-', text)
     return text.strip('-')
 
-def _get_issue_filepath(issue):
-    """Determines the file path for an issue based on its labels and title."""
-    labels = issue.labels
-    title = issue.title
+    for issue in issues:
+        print(f"[DIAG] Processing issue: {issue.title}")
+        print(f"[DIAG] Issue labels from GitLab: {issue.labels}")
+        markdown_content = _generate_markdown_content(issue)
+        relative_filepath = get_issue_filepath(issue.title, issue.labels)
+        if not relative_filepath:
+            relative_filepath = os.path.join("_unassigned", f"{_slugify(issue.title)}.md")
+        
+        full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        gitlab_managed_files.add(full_filepath)
 
-    if "Type::Task" in labels:
-        return None # Explicitly handle tasks to be placed in _unassigned by the caller
+        os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
+        with open(full_filepath, 'w', encoding='utf-8') as f:
+            f.write(markdown_content)
+
+        node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": relative_filepath}
+        nodes_data.append(node)
+        print(f"[DIAG] Final relative_filepath in build_project_map: {relative_filepath}")
+
+def get_issue_filepath(title: str, labels: list[str]) -> str | None:
+    print(f"[DIAG] get_issue_filepath called with title: {title}, labels: {labels}")
+    """
+    Determines the canonical file path for an issue based on its title and labels.
+    This is the single source of truth for generating issue file paths.
+    An Epic is treated as a directory containing an 'epic.md' file for its own description.
+    """
+    is_story = "Type::Story" in labels
+    is_task = "Type::Task" in labels
+    print(f"[DIAG] Inside get_issue_filepath: is_story={is_story}, is_task={is_task}")
+
+    if is_task:
+        return None # Tasks are handled separately
+
+    # Determine filename first, based SOLELY on whether it's a story.
+    filename = f"story-{_slugify(title)}.md" if is_story else f"{_slugify(title)}.md"
+    print(f"[DIAG] Inside get_issue_filepath: generated filename={filename}")
 
     backbone_label = next((label for label in labels if label.startswith("Backbone::")), None)
     epic_label = next((label for label in labels if label.startswith("Epic::")), None)
-    story_type_label = "Type::Story" in labels
-
-    if story_type_label and epic_label and backbone_label:
-        backbone_name = _slugify(backbone_label.split("::", 1)[1])
-        epic_name = _slugify(epic_label.split("::", 1)[1])
-        story_name = _slugify(title)
-        return os.path.join("backbones", backbone_name, "epics", "stories", f"{story_name}.md")
     
-    if epic_label and backbone_label:
-        backbone_name = _slugify(backbone_label.split("::", 1)[1])
+    if not backbone_label:
+        return os.path.join("_unassigned", filename)
+
+    backbone_name = _slugify(backbone_label.split("::", 1)[1])
+
+    if epic_label:
         epic_name = _slugify(epic_label.split("::", 1)[1])
-        return os.path.join("backbones", backbone_name, "epics", f"{epic_name}.md")
+        if not is_story: # It's an Epic
+            # The Epic's own file is special ('epic.md') and not prefixed.
+            final_path = os.path.join("backbones", backbone_name, epic_name, "epic.md")
+            print(f"[DIAG] Inside get_issue_filepath: final_path (Epic)={final_path}")
+            return final_path
+        else: # It's a Story belonging to an Epic
+            final_path = os.path.join("backbones", backbone_name, epic_name, filename)
+            print(f"[DIAG] Inside get_issue_filepath: final_path (Story with Epic)={final_path}")
+            return final_path
 
-    if backbone_label:
-        backbone_name = _slugify(backbone_label.split("::", 1)[1])
-        return os.path.join("backbones", backbone_name, f"{_slugify(title)}.md")
-
-    return None
+    # It's a story without an epic, or another backbone-level issue. The filename is already correctly prefixed.
+    final_path = os.path.join("backbones", backbone_name, filename)
+    print(f"[DIAG] Inside get_issue_filepath: final_path (Backbone-level)={final_path}")
+    return final_path
 
 def _generate_markdown_content(issue):
     """Generates the full Markdown content for an issue."""
@@ -64,6 +103,23 @@ def _generate_markdown_content(issue):
     }
     content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{issue.description or ''}\n"
     return content
+# ... (rest of the file) ...
+# In build_project_map function:
+    for issue in issues:
+        markdown_content = _generate_markdown_content(issue)
+        relative_filepath = get_issue_filepath(issue.title, issue.labels)
+        if not relative_filepath:
+            relative_filepath = os.path.join("_unassigned", f"{_slugify(issue.title)}.md")
+        
+        full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        gitlab_managed_files.add(full_filepath)
+
+        os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
+        with open(full_filepath, 'w', encoding='utf-8') as f:
+            f.write(markdown_content)
+
+        node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": relative_filepath}
+        nodes_data.append(node)
 
 def get_gitlab_client():
     gitlab_url = os.getenv("GITLAB_URL")
@@ -126,28 +182,33 @@ def build_project_map() -> dict:
         return {"status": "error", "message": str(e)}
 
     issues = project.issues.list(all=True)
-    if os.path.exists(DATA_DIR):
-        shutil.rmtree(DATA_DIR)
-    os.makedirs(DATA_DIR)
+    
+    # Ensure the data directory exists without deleting it
+    os.makedirs(DATA_DIR, exist_ok=True)
 
     nodes_data = []
     links_data = []
     unique_links_set = set()
 
+    # Keep track of all file paths managed by GitLab issues
+    gitlab_managed_files = set()
+
     for issue in issues:
         markdown_content = _generate_markdown_content(issue)
-        relative_filepath = _get_issue_filepath(issue)
+        relative_filepath = get_issue_filepath(issue.title, issue.labels)
         if not relative_filepath:
             relative_filepath = os.path.join("_unassigned", f"{_slugify(issue.title)}.md")
         
         full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        gitlab_managed_files.add(full_filepath)
+
         os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f:
             f.write(markdown_content)
 
         node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": relative_filepath}
         nodes_data.append(node)
-
+        
         all_text_to_parse = [issue.description or ""]
         for comment in issue.notes.list(all=True):
             all_text_to_parse.append(comment.body)
@@ -158,6 +219,9 @@ def build_project_map() -> dict:
                 if link_tuple not in unique_links_set:
                     unique_links_set.add(link_tuple)
                     links_data.append(rel)
+
+    # Future enhancement: Prune local files that are no longer on GitLab
+    # For now, we just update/create.
 
     project_map_data = {"doctrine": {"gemini_md_path": "/docs/spec/GEMINI.md", "gemini_md_commit_hash": "TODO"}, "nodes": nodes_data, "links": links_data}
     return {"status": "success", "map_data": project_map_data, "issues_found": len(nodes_data)}

@@ -74,6 +74,19 @@ Due to this platform limitation, the project will adhere to the following conven
 
 **All synchronization logic must strictly adhere to this simplified, flat-structure approach.**
 
+## File and Directory Structure Convention
+
+To maintain a clean and portable project structure, all generated files and directories (artifacts, caches, data files) **MUST** be located in the **project root**. The project root is determined dynamically at runtime, making the entire script portable to other environments. The `/scripts` directory must contain only source code.
+
+This convention is enforced by dynamically identifying the project root based on the script's location and then constructing absolute paths from it.
+
+- **Project Root:** Determined dynamically (e.g., `/workspaces/`)
+- **Generated Data:** `[Project Root]/gitlab_data/` (e.g., `/workspaces/gitlab_data/`)
+- **Generated Cache:** `[Project Root]/.gemini_cache/` (e.g., `/workspaces/.gemini_cache/`)
+- **Generated Map:** `[Project Root]/project_map.yaml` (e.g., `/workspaces/project_map.yaml`)
+
+All scripts that create or read these files must adhere to this principle to ensure they work correctly regardless of the execution directory.
+
 ## Holistic Implementation Mandate
 
 To ensure all implementation work is strictly aligned with both a pre-approved plan and the project's high-level goals, you MUST follow this protocol before using any file-modifying tools.
