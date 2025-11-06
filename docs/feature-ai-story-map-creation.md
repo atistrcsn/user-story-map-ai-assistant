@@ -21,10 +21,10 @@ The process is interactive, with the AI performing analysis and proposing soluti
 *   **Importance:** This is the starting trigger for the entire planning workflow.
 
 **3. Two-Phase AI Analysis (Context-Aware)**
-*   **Státusz:** `[KÉSZ]`
+*   **Státusz:** `[FOLYAMATBAN]`
 *   **Understanding:** This strategy addresses the challenge of managing large project contexts and LLM token limits, ensuring scalability and accuracy.
-    *   **Phase 1 (Pre-filtering):** A smaller, faster LLM is used to intelligently filter the vast amount of project documentation and existing issues. It receives the user's request and a list of all available documents/issues (typically with their titles and auto-generated summaries). Its task is to identify and return a list of the 10-15 most relevant files/issues.
-    *   **Phase 2 (Deep Analysis):** The primary, more powerful LLM then performs a detailed analysis, but only on the pre-filtered, highly relevant subset of documents. This focused context allows for more accurate and efficient reasoning.
+    *   **Phase 1 (Pre-filtering):** `[FOLYAMATBAN]` A smaller, faster LLM is used to intelligently filter the vast amount of project documentation and existing issues. It receives the user's request and a list of all available documents/issues (typically with their titles and auto-generated summaries). Its task is to identify and return a list of the 10-15 most relevant files/issues.
+    *   **Phase 2 (Deep Analysis):** `[FÜGGŐBEN]` The primary, more powerful LLM then performs a detailed analysis, but only on the pre-filtered, highly relevant subset of documents. This focused context allows for more accurate and efficient reasoning.
 *   **Importance:** Prevents LLM context window overflows, reduces computational cost, and improves the precision of the AI's analysis by focusing on pertinent information.
 
 **4. Structured Dialogue (User Confirmation)**
@@ -38,7 +38,7 @@ The process is interactive, with the AI performing analysis and proposing soluti
 *   **Importance:** Provides a local, reviewable representation of the planned changes before any modifications are pushed to the remote GitLab instance, acting as a crucial staging step.
 
 **6. Robust Upload to GitLab**
-*   **Státusz:** `[FÜGGŐBEN]` - **Valós implementáció megkezdése**
+*   **Státusz:** `[KÉSZ]` - **TDD implementáció befejezve**
 *   **Understanding:** This is the final, critical phase where local changes are propagated to the remote GitLab server. This process is designed for reliability and data integrity.
     *   **Ordered Execution:** Changes are applied in a strict sequence: 1) Create any new labels required by the new issues. 2) Create the new issues themselves, capturing their GitLab IIDs. 3) Add dependency comments (`/blocks #<IID>` or `/blocked_by #<IID>`) to the relevant issues, using the newly obtained IIDs.
     *   **API Throttling:** Small, controlled delays are introduced between API calls to prevent hitting GitLab's rate limits and ensure smooth operation.

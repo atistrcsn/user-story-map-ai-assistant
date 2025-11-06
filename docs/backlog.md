@@ -72,4 +72,40 @@ This feature enables a user to provide a high-level idea and have the AI assista
     *   Run the test suite to ensure the implementation passes.
     *   Only after the test passes, update the status of the main feature in `docs/feature-ai-story-map-creation.md` to `[KÉSZ]`.
 
+## Implement AI Integration (Pre-filtering)
+
+**Status:** PENDING
+
+**Description:** Implement the first phase of the two-phase AI analysis. This involves creating a mechanism that uses a fast AI model to intelligently select the most relevant context files (documentation and existing issues) based on a user's high-level feature request.
+
+**Implementation Plan:**
+
+1.  **New AI Module (`ai_service.py`):**
+    *   Create `scripts/ai_service.py` to encapsulate all AI model interactions, keeping the codebase modular.
+    *   Define a function `get_relevant_context_files(user_prompt: str, context_sources: list[dict])` within this module. This function will be responsible for building the prompt, calling the AI API, and parsing the response to extract the list of relevant file paths.
+
+2.  **Test-Driven Development (`test_ai_service.py`):**
+    *   Create the test file `scripts/tests/test_ai_service.py`.
+    *   Write a test case `test_get_relevant_context_files` that uses `@patch` to mock the actual AI API call.
+    *   The test will verify that the function constructs the correct prompt and correctly parses a simulated JSON response from the mock API.
+
+3.  **Context Aggregation (`gemini_cli.py`):**
+    *   In `gemini_cli.py`, within the `create_feature` command, implement helper functions to gather all potential context sources:
+        *   One function to parse `project_map.yaml` and extract the `local_path` and `title` for all existing issues.
+        *   Another function to recursively find all `.md` files in the `docs/` directory.
+    *   These lists will be combined to form the `context_sources` input for the AI service.
+
+4.  **AI Service Implementation (`ai_service.py`):**
+    *   Implement the `get_relevant_context_files` function.
+    *   It will dynamically construct a detailed prompt containing the user's request and the list of available context files with their summaries/titles.
+    *   The prompt will instruct the AI to return a JSON list of the most relevant file paths.
+    *   The function will call the AI model (initially mocked for testing) and parse the JSON response into a Python list.
+
+5.  **CLI Integration:**
+    *   Integrate the call to `ai_service.get_relevant_context_files` into the `create_feature` command in `gemini_cli.py`.
+    *   For this initial implementation, the command will simply print the returned list of relevant files to the console for verification.
+
+6.  **Documentation:**
+    *   Update all relevant project documents (`backlog.md`, `feature-ai-story-map-creation.md`, `architecture-design-document.md`) to reflect the new module and the implementation's progress.
+
 ## Future Features / Enhancements:

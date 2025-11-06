@@ -29,43 +29,28 @@ def _get_issue_filepath(issue):
     labels = issue.labels
     title = issue.title
 
-    # Check for Task type first - these do not get their own file
     if "Type::Task" in labels:
         return None
 
-    path_parts = []
-    issue_type = ""
-
-    # Determine issue type and extract parent names from labels
     backbone_label = next((label for label in labels if label.startswith("Backbone::")), None)
     epic_label = next((label for label in labels if label.startswith("Epic::")), None)
     story_type_label = "Type::Story" in labels
 
-    # Logic for path construction based on Hybrid Model
+    if story_type_label and epic_label and backbone_label:
+        backbone_name = _slugify(backbone_label.split("::", 1)[1])
+        epic_name = _slugify(epic_label.split("::", 1)[1])
+        story_name = _slugify(title)
+        return os.path.join("backbones", backbone_name, "epics", "stories", f"{story_name}.md")
+    
+    if epic_label and backbone_label:
+        backbone_name = _slugify(backbone_label.split("::", 1)[1])
+        epic_name = _slugify(epic_label.split("::", 1)[1])
+        return os.path.join("backbones", backbone_name, "epics", f"{epic_name}.md")
+
     if backbone_label:
         backbone_name = _slugify(backbone_label.split("::", 1)[1])
-        path_parts.append(os.path.join("backbones", backbone_name))
+        return os.path.join("backbones", backbone_name, f"{_slugify(title)}.md")
 
-    if epic_label:
-        epic_name = _slugify(epic_label.split("::", 1)[1])
-        path_parts.append(os.path.join("epics", epic_name))
-
-    if story_type_label:
-        # A story must be under an epic, which must be under a backbone
-        if not epic_label or not backbone_label:
-            return os.path.join("_unassigned", f"{_slugify(title)}.md")
-        path_parts.append("stories")
-        return os.path.join(*path_parts, f"{_slugify(title)}.md")
-    
-    if epic_label: # It's an Epic
-        if not backbone_label:
-            return os.path.join("_unassigned", f"{_slugify(title)}.md")
-        return os.path.join(*path_parts, f"{_slugify(title)}.md")
-
-    if backbone_label: # It's a Backbone
-        return os.path.join(*path_parts, f"{_slugify(title)}.md")
-
-    # Default to unassigned if no hierarchy labels are found
     return os.path.join("_unassigned", f"{_slugify(title)}.md")
 
 def _generate_markdown_content(issue):
@@ -239,33 +224,24 @@ def _get_issue_filepath_from_dict(issue_dict):
     if "Type::Task" in labels:
         return None
 
-    path_parts = []
-
     backbone_label = next((label for label in labels if label.startswith("Backbone::")), None)
     epic_label = next((label for label in labels if label.startswith("Epic::")), None)
     story_type_label = "Type::Story" in labels
 
+    if story_type_label and epic_label and backbone_label:
+        backbone_name = _slugify(backbone_label.split("::", 1)[1])
+        epic_name = _slugify(epic_label.split("::", 1)[1])
+        story_name = _slugify(title)
+        return os.path.join("backbones", backbone_name, "epics", "stories", f"{story_name}.md")
+    
+    if epic_label and backbone_label:
+        backbone_name = _slugify(backbone_label.split("::", 1)[1])
+        epic_name = _slugify(epic_label.split("::", 1)[1])
+        return os.path.join("backbones", backbone_name, "epics", f"{epic_name}.md")
+
     if backbone_label:
         backbone_name = _slugify(backbone_label.split("::", 1)[1])
-        path_parts.append(os.path.join("backbones", backbone_name))
-
-    if epic_label:
-        epic_name = _slugify(epic_label.split("::", 1)[1])
-        path_parts.append(os.path.join("epics", epic_name))
-
-    if story_type_label:
-        if not epic_label or not backbone_label:
-            return os.path.join("_unassigned", f"{_slugify(title)}.md")
-        path_parts.append("stories")
-        return os.path.join(*path_parts, f"{_slugify(title)}.md")
-    
-    if epic_label:
-        if not backbone_label:
-            return os.path.join("_unassigned", f"{_slugify(title)}.md")
-        return os.path.join(*path_parts, f"{_slugify(title)}.md")
-
-    if backbone_label:
-        return os.path.join(*path_parts, f"{_slugify(title)}.md")
+        return os.path.join("backbones", backbone_name, f"{_slugify(title)}.md")
 
     return os.path.join("_unassigned", f"{_slugify(title)}.md")
 
@@ -288,66 +264,79 @@ def _generate_markdown_content_from_dict(issue_dict):
 """
     return content
 
-def generate_local_artifacts(proposed_issues: list[dict], project_map_path: str) -> dict:
+def upload_artifacts_to_gitlab(project_map: dict) -> dict:
     """
-    Generates local Markdown files for proposed issues and updates the project map.
+    Uploads new artifacts (labels, issues, links) from a project map to GitLab.
     """
-    new_nodes_data = []
-    new_links_data = []
+    try:
+        gl = get_gitlab_client()
+        project_id = os.getenv("GITLAB_PROJECT_ID")
+        if not project_id:
+            raise ValueError("Error: GITLAB_PROJECT_ID must be set.")
+        project = gl.projects.get(project_id)
+    except (ValueError, ConnectionError) as e:
+        return {"status": "error", "message": str(e)}
+
+    labels_created_count = 0
+    issues_created_count = 0
+    links_created_count = 0
     
-    # Ensure DATA_DIR exists
-    os.makedirs(DATA_DIR, exist_ok=True)
-
-    for issue_dict in proposed_issues:
-        # 1. Generate content and path
-        markdown_content = _generate_markdown_content_from_dict(issue_dict)
-        relative_filepath = _get_issue_filepath_from_dict(issue_dict)
+    # --- 1. Handle Labels ---
+    try:
+        existing_labels = [label.name for label in project.labels.list(all=True)]
+        all_new_labels = set()
+        for node in project_map.get("nodes", []):
+            if node.get("id", "").startswith("NEW_"):
+                for label in node.get("labels", []):
+                    all_new_labels.add(label)
         
-        if relative_filepath:
-            full_filepath = os.path.join(DATA_DIR, relative_filepath)
-            os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
-            with open(full_filepath, 'w', encoding='utf-8') as f:
-                f.write(markdown_content)
+        labels_to_create = [label for label in all_new_labels if label not in existing_labels]
+        
+        for label_name in labels_to_create:
+            project.labels.create({'name': label_name, 'color': '#F0AD4E'})
+            labels_created_count += 1
+    except gitlab.exceptions.GitlabError as e:
+        return {"status": "error", "message": f"Failed to create labels: {e}"}
 
-            # 2. Build node for project map
-            node = {
-                "id": issue_dict.get("iid", "NEW"),
-                "title": issue_dict.get("title", ""),
-                "type": "Issue", # Default type, will be refined by labels
-                "state": issue_dict.get("state", "opened"),
-                "web_url": issue_dict.get("web_url", "N/A"),
-                "labels": issue_dict.get("labels", []),
-                "local_path": relative_filepath
+    # --- 2. Create Issues ---
+    new_issue_id_map = {} # Maps temporary ID (e.g., "NEW_1") to actual GitLab IID
+    try:
+        nodes_to_create = [node for node in project_map.get("nodes", []) if node.get("id", "").startswith("NEW_")]
+        for node in nodes_to_create:
+            issue_data = {
+                'title': node.get("title"),
+                'description': node.get("description", ""),
+                'labels': node.get("labels", [])
             }
-            new_nodes_data.append(node)
+            new_issue = project.issues.create(issue_data)
+            new_issue_id_map[node["id"]] = new_issue.iid
+            issues_created_count += 1
+    except gitlab.exceptions.GitlabError as e:
+        return {"status": "error", "message": f"Failed to create issues: {e}"}
 
-            # 3. Parse relationships for project map (from description for new issues)
-            # For newly proposed issues, relationships are typically defined in the description
-            # or explicitly passed in the issue_dict. For simplicity, we'll assume they are
-            # in the description for now, similar to existing issues.
-            all_text_to_parse = [issue_dict.get("description", "")]
-            # Note: For new issues, there are no existing comments to parse.
+    # --- 3. Create Links (Notes) ---
+    try:
+        for link in project_map.get("links", []):
+            source_id_str = str(link.get("source"))
+            target_id = link.get("target")
+            
+            if source_id_str.startswith("NEW_") and isinstance(target_id, int):
+                source_new_iid = new_issue_id_map.get(source_id_str)
+                if not source_new_iid:
+                    continue
 
-            # We need a temporary IID for new issues to link them in the local map.
-            # This will be replaced by real GitLab IIDs during upload.
-            temp_iid = f"NEW_{len(new_nodes_data)}" 
-            node["id"] = temp_iid # Assign temporary IID for local map
+                target_issue = project.issues.get(target_id)
+                
+                if link["type"] == "blocks":
+                    note_body = f"/blocked by #{source_new_iid}"
+                    target_issue.notes.create({'body': note_body})
+                    links_created_count += 1
+    except gitlab.exceptions.GitlabError as e:
+        return {"status": "error", "message": f"Failed to create links: {e}"}
 
-            for text in all_text_to_parse:
-                found_relationships = parse_relationships(temp_iid, text) # Use temp_iid
-                for rel in found_relationships:
-                    new_links_data.append(rel)
-
-    # Load existing project map and merge new data
-    project_map_data = {"doctrine": {}, "nodes": [], "links": []}
-    if os.path.exists(project_map_path):
-        with open(project_map_path, 'r') as f:
-            project_map_data = yaml.safe_load(f)
-
-    project_map_data["nodes"].extend(new_nodes_data)
-    project_map_data["links"].extend(new_links_data)
-
-    with open(project_map_path, 'w') as f:
-        yaml.dump(project_map_data, f, sort_keys=False)
-
-    return {"status": "success", "generated_count": len(new_nodes_data), "new_nodes": new_nodes_data}
+    return {
+        "status": "success",
+        "labels_created": labels_created_count,
+        "issues_created": issues_created_count,
+        "links_created": links_created_count
+    }

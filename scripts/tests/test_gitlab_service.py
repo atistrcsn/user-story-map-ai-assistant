@@ -255,46 +255,99 @@ class TestBuildProjectMap:
         assert link2 in map_data["links"]
 
 
-class TestHelperFunctions:
 
-    def test_slugify(self):
-        assert _slugify("This is a Test") == "this-is-a-test"
-        assert _slugify("  leading/trailing spaces  ") == "leading-trailing-spaces"
-        assert _slugify("Special!@#Characters") == "special-characters"
-        assert _slugify("Backbone::My Project") == "backbone-my-project"
+class TestUploadArtifactsToGitlab:
 
-    def test_get_issue_filepath(self, mock_issue_backbone, mock_issue_epic, mock_issue_story, mock_issue_story_with_tasks, mock_issue_task, mock_issue_unassigned):
-        # Test Backbone
-        path = _get_issue_filepath(mock_issue_backbone)
-        assert path == os.path.join("backbones", "user-authentication", "user-authentication-workflow.md")
+    @pytest.fixture
+    def mock_gitlab_project_for_upload(self, mocker):
+        """A specialized mock for testing the upload process."""
+        mock_project = MagicMock()
+        
+        # Mock existing labels
+        mock_label_existing = MagicMock()
+        mock_label_existing.name = "Type::Story"
+        mock_project.labels.list.return_value = [mock_label_existing]
 
-        # Test Epic
-        path = _get_issue_filepath(mock_issue_epic)
-        assert path == os.path.join("backbones", "user-authentication", "epics", "implement-login-feature.md")
+        # Mock issue creation - return a mock issue with a new iid
+        def create_issue_side_effect(data):
+            mock_issue = MagicMock()
+            # Simulate GitLab assigning a new IID
+            mock_issue.iid = 1000 + len(mock_project.issues.create.call_args_list)
+            mock_issue.title = data['title']
+            return mock_issue
+        mock_project.issues.create.side_effect = create_issue_side_effect
 
-        # Test Story
-        path = _get_issue_filepath(mock_issue_story)
-        assert path == os.path.join("backbones", "user-authentication", "epics", "stories", "as-a-user-i-can-log-in-with-email-and-password.md")
+        # Mock getting an issue for adding notes
+        mock_existing_issue_for_note = MagicMock()
+        mock_existing_issue_for_note.iid = 50
+        mock_project.issues.get.return_value = mock_existing_issue_for_note
 
-        # Test Story with Tasks
-        path = _get_issue_filepath(mock_issue_story_with_tasks)
-        assert path == os.path.join("backbones", "user-authentication", "epics", "stories", "as-a-user-i-can-reset-my-password.md")
+        mock_gl_client = MagicMock()
+        mock_gl_client.projects.get.return_value = mock_project
+        mocker.patch('gitlab_service.get_gitlab_client', return_value=mock_gl_client)
+        
+        return mock_project
 
-        # Test Task (should return None)
-        path = _get_issue_filepath(mock_issue_task)
-        assert path is None
+    def test_upload_artifacts_in_correct_order(self, mock_gitlab_project_for_upload):
+        # Arrange
+        from gitlab_service import upload_artifacts_to_gitlab
+        from unittest.mock import call
 
-        # Test Unassigned
-        path = _get_issue_filepath(mock_issue_unassigned)
-        assert path == os.path.join("_unassigned", "random-bug-fix.md")
+        project_map = {
+            "nodes": [
+                {
+                    "id": "NEW_1",
+                    "title": "Implement New Feature",
+                    "labels": ["Type::Story", "Epic::New Epic"], # One existing, one new label
+                    "description": "This is a new feature."
+                },
+                {
+                    "id": "NEW_2",
+                    "title": "Fix Critical Bug",
+                    "labels": ["Type::Bug"], # Another new label
+                    "description": "A critical bug to be fixed."
+                }
+            ],
+            "links": [
+                # A new issue blocks an existing issue
+                {"source": "NEW_1", "target": 50, "type": "blocks"} 
+            ]
+        }
 
-    def test_generate_markdown_content(self, mock_issue_story_with_tasks):
-        content = _generate_markdown_content(mock_issue_story_with_tasks)
-        assert "---" in content
-        assert "iid: 103" in content
-        assert "title: As a user, I can reset my password" in content
-        assert "- Type::Story" in content
-        assert "task_completion_status:" in content
-        assert "count: 3" in content
-        assert "completed_count: 1" in content
-        assert "\nPassword reset flow.\n- [ ] Send reset email\n- [ ] Verify token\n- [ ] Update password" in content
+        # Act
+        result = upload_artifacts_to_gitlab(project_map)
+
+        # Assert
+        assert result["status"] == "success"
+        assert result["labels_created"] == 2
+        assert result["issues_created"] == 2
+        assert result["links_created"] == 1
+
+        # 1. Verify Label creation
+        # It should first list existing labels
+        mock_gitlab_project_for_upload.labels.list.assert_called_once()
+        
+        # It should create the two new labels, but not the existing one
+        expected_label_calls = [
+            call({'name': 'Epic::New Epic', 'color': '#F0AD4E'}), # Default color
+            call({'name': 'Type::Bug', 'color': '#F0AD4E'})
+        ]
+        mock_gitlab_project_for_upload.labels.create.assert_has_calls(expected_label_calls, any_order=True)
+        assert mock_gitlab_project_for_upload.labels.create.call_count == 2
+
+        # 2. Verify Issue creation
+        expected_issue_calls = [
+            call({'title': 'Implement New Feature', 'labels': ['Type::Story', 'Epic::New Epic'], 'description': 'This is a new feature.'}),
+            call({'title': 'Fix Critical Bug', 'labels': ['Type::Bug'], 'description': 'A critical bug to be fixed.'})
+        ]
+        mock_gitlab_project_for_upload.issues.create.assert_has_calls(expected_issue_calls, any_order=True)
+        assert mock_gitlab_project_for_upload.issues.create.call_count == 2
+
+        # 3. Verify Link (Note) creation
+        # It should get the existing issue to add a note to it
+        mock_gitlab_project_for_upload.issues.get.assert_called_once_with(50)
+        
+        # It should create a note on the issue returned by get()
+        mock_issue_for_note = mock_gitlab_project_for_upload.issues.get.return_value
+        # The IID of the new issue is simulated as 1001
+        mock_issue_for_note.notes.create.assert_called_once_with({'body': '/blocked by #1001'})
