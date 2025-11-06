@@ -50,4 +50,26 @@ This feature enables a user to provide a high-level idea and have the AI assista
 *   **Structured Dialogue:** Create the interactive user confirmation workflow.
 *   **Local Generation & GitLab Upload:** Implement the final steps to create artifacts locally and upload them to GitLab.
 
+## Implement Robust GitLab Upload Functionality
+
+**Status:** PENDING
+
+**Description:** Refactor and properly implement the `upload_artifacts_to_gitlab` function in `gitlab_service.py` using a test-driven approach to ensure correctness and reliability.
+
+**Implementation Plan:**
+
+1.  **Test-Driven Development (TDD):**
+    *   In `scripts/tests/test_gitlab_service.py`, write a comprehensive test case `test_upload_artifacts_to_gitlab` using `unittest.mock` to simulate the GitLab API.
+    *   The test must verify the correct order of operations: Labels -> Issues -> Dependency Comments.
+    *   The test must assert that the correct data (titles, labels, comment text) is passed to the mocked API calls.
+
+2.  **Refactor `upload_artifacts_to_gitlab`:**
+    *   **Step 1: Handle Labels:** First, collect all unique labels from the input nodes, check which ones already exist on the project, and create the missing ones.
+    *   **Step 2: Create Issues:** Create each issue, passing the now-guaranteed-to-exist labels. Store a mapping of temporary IDs (e.g., `NEW_1`) to the real GitLab IIDs.
+    *   **Step 3: Create Dependency Comments:** Read the `links` from `project_map.yaml`. Use the ID map to find the real IIDs and post the correctly formatted `/blocks` or `/blocked by` comments to the appropriate issues.
+
+3.  **Verification:**
+    *   Run the test suite to ensure the implementation passes.
+    *   Only after the test passes, update the status of the main feature in `docs/feature-ai-story-map-creation.md` to `[KÉSZ]`.
+
 ## Future Features / Enhancements:
