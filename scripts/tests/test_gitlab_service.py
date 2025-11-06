@@ -28,13 +28,15 @@ def mock_issue_epic():
     issue.iid = 101
     issue.title = "Implement Login Feature"
     issue.state = "opened"
-    issue.labels = ["Epic::Implement Login Feature", "Backbone::User Authentication"]
+    issue.labels = ["Type::Epic", "Backbone::User Authentication"]
     issue.web_url = "http://gitlab.example.com/project/101"
     issue.created_at = "2025-11-02T11:00:00.000Z"
     issue.updated_at = "2025-11-05T11:00:00.000Z"
     issue.description = "This epic covers all stories related to user login."
     issue.notes.list.return_value = []
     issue.task_completion_status = {"count": 0, "completed_count": 0}
+    # For link testing
+    issue.links.list.return_value = []
     return issue
 
 @pytest.fixture
@@ -43,13 +45,15 @@ def mock_issue_story():
     issue.iid = 102
     issue.title = "As a user, I can log in with email and password"
     issue.state = "opened"
-    issue.labels = ["Type::Story", "Epic::Implement Login Feature", "Backbone::User Authentication"]
+    issue.labels = ["Type::Story", "Backbone::User Authentication"]
     issue.web_url = "http://gitlab.example.com/project/102"
     issue.created_at = "2025-11-03T12:00:00.000Z"
     issue.updated_at = "2025-11-05T12:00:00.000Z"
     issue.description = "User should be able to provide credentials and gain access."
     issue.notes.list.return_value = []
     issue.task_completion_status = {"count": 0, "completed_count": 0}
+    # For link testing
+    issue.links.list.return_value = []
     return issue
 
 @pytest.fixture
@@ -58,13 +62,15 @@ def mock_issue_story_with_tasks():
     issue.iid = 103
     issue.title = "As a user, I can reset my password"
     issue.state = "opened"
-    issue.labels = ["Type::Story", "Epic::Implement Login Feature", "Backbone::User Authentication"]
+    issue.labels = ["Type::Story", "Backbone::User Authentication"]
     issue.web_url = "http://gitlab.example.com/project/103"
     issue.created_at = "2025-11-04T13:00:00.000Z"
     issue.updated_at = "2025-11-05T13:00:00.000Z"
     issue.description = "Password reset flow.\n- [ ] Send reset email\n- [ ] Verify token\n- [ ] Update password"
     issue.notes.list.return_value = []
     issue.task_completion_status = {"count": 3, "completed_count": 1}
+    # For link testing
+    issue.links.list.return_value = []
     return issue
 
 @pytest.fixture
@@ -73,7 +79,7 @@ def mock_issue_task():
     issue.iid = 104
     issue.title = "Create database migration for users table"
     issue.state = "opened"
-    issue.labels = ["Type::Task", "Epic::Implement Login Feature", "Backbone::User Authentication"]
+    issue.labels = ["Type::Task", "Backbone::User Authentication"]
     issue.web_url = "http://gitlab.example.com/project/104"
     issue.created_at = "2025-11-05T14:00:00.000Z"
     issue.updated_at = "2025-11-05T14:00:00.000Z"
@@ -187,6 +193,44 @@ class TestSmartSyncLogic:
         assert result["updated_count"] == 6 # Should re-fetch all
 
 
+# --- New Fixtures for Link Testing ---
+@pytest.fixture
+def mock_issue_epic_linked():
+    issue = MagicMock()
+    issue.iid = 201
+    issue.title = "New Epic for Linking"
+    issue.state = "opened"
+    issue.labels = ["Type::Epic", "Backbone::Test Backbone"]
+    issue.web_url = "http://gitlab.example.com/project/201"
+    issue.created_at = "2025-11-07T10:00:00.000Z"
+    issue.updated_at = "2025-11-07T10:00:00.000Z"
+    issue.description = "Epic for link testing."
+    issue.notes.list.return_value = []
+    issue.task_completion_status = {"count": 0, "completed_count": 0}
+    issue.links.list.return_value = []
+    return issue
+
+@pytest.fixture
+def mock_issue_story_linked(mock_issue_epic_linked):
+    issue = MagicMock()
+    issue.iid = 202
+    issue.title = "Story Linked to Epic"
+    issue.state = "opened"
+    issue.labels = ["Type::Story", "Backbone::Test Backbone"]
+    issue.web_url = "http://gitlab.example.com/project/202"
+    issue.created_at = "2025-11-07T11:00:00.000Z"
+    issue.updated_at = "2025-11-07T11:00:00.000Z"
+    issue.description = "This story should be under the linked epic."
+    issue.notes.list.return_value = []
+    issue.task_completion_status = {"count": 0, "completed_count": 0}
+    
+    # This is the crucial part: mock the link
+    mock_link = MagicMock()
+    mock_link.iid = mock_issue_epic_linked.iid
+    issue.links.list.return_value = [mock_link]
+    return issue
+
+
 class TestBuildProjectMap:
 
     @pytest.fixture
@@ -202,13 +246,13 @@ class TestBuildProjectMap:
 
         # Assert
         assert result["status"] == "success"
-        assert result["issues_found"] == 6
+        assert result["issues_found"] == 5 # Tasks are no longer standalone files
         map_data = result["map_data"]
-        assert len(map_data["nodes"]) == 6
+        assert len(map_data["nodes"]) == 5
         
-        # Check that all issues, including the task, have a file
+        # Check that all non-task issues have a file
         assert (mock_data_dir / "backbones" / "user-authentication" / "user-authentication-workflow.md").exists()
-        assert (mock_data_dir / "_unassigned" / "create-database-migration-for-users-table.md").exists()
+        assert not (mock_data_dir / "_unassigned" / "create-database-migration-for-users-table.md").exists() # Task should not have a file
         assert (mock_data_dir / "_unassigned" / "random-bug-fix.md").exists()
 
     def test_build_map_parses_relationships(self, mock_gitlab_project, mock_data_dir, mock_issue_story, mock_issue_story_with_tasks):
@@ -228,6 +272,44 @@ class TestBuildProjectMap:
         link2 = {"source": 103, "target": 100, "type": "blocks"}
         assert link1 in map_data["links"]
         assert link2 in map_data["links"]
+
+    def test_build_map_creates_hierarchy_from_issue_links(self, mocker, mock_data_dir, mock_issue_epic_linked, mock_issue_story_linked):
+        # Arrange
+        mock_project = MagicMock()
+        mock_project.issues.list.return_value = [mock_issue_epic_linked, mock_issue_story_linked]
+        
+        # Need to handle .get() for both issues
+        def get_issue_side_effect(iid):
+            if iid == mock_issue_epic_linked.iid:
+                return mock_issue_epic_linked
+            if iid == mock_issue_story_linked.iid:
+                return mock_issue_story_linked
+            raise ValueError(f"Issue with iid {iid} not found in mock")
+        mock_project.issues.get.side_effect = get_issue_side_effect
+
+        mock_gl_client = MagicMock()
+        mock_gl_client.projects.get.return_value = mock_project
+        mocker.patch('gitlab_service.get_gitlab_client', return_value=mock_gl_client)
+
+        # Act
+        result = build_project_map()
+
+        # Assert
+        assert result["status"] == "success"
+        map_data = result["map_data"]
+        
+        # 1. Check if the story file is in the epic's directory
+        epic_dir_name = "new-epic-for-linking"
+        story_file_name = "story-story-linked-to-epic.md"
+        expected_story_path = os.path.join("backbones", "test-backbone", epic_dir_name, story_file_name)
+        
+        story_node = next(node for node in map_data["nodes"] if node["id"] == mock_issue_story_linked.iid)
+        assert story_node["local_path"] == expected_story_path
+        assert (mock_data_dir / expected_story_path).exists()
+
+        # 2. Check if the 'contains' link was created in the map
+        expected_link = {"source": mock_issue_epic_linked.iid, "target": mock_issue_story_linked.iid, "type": "contains"}
+        assert expected_link in map_data["links"]
 
 
 class TestUploadArtifactsToGitlab:
@@ -261,7 +343,7 @@ class TestUploadArtifactsToGitlab:
         # Arrange
         project_map = {
             "nodes": [
-                {"id": "NEW_1", "title": "Implement New Feature", "labels": ["Type::Story", "Epic::New Epic"], "description": "This is a new feature."},
+                {"id": "NEW_1", "title": "Implement New Feature", "labels": ["Type::Story"], "description": "This is a new feature."},
                 {"id": "NEW_2", "title": "Fix Critical Bug", "labels": ["Type::Bug"], "description": "A critical bug to be fixed."}
             ],
             "links": [{"source": "NEW_1", "target": 50, "type": "blocks"}]
@@ -272,16 +354,16 @@ class TestUploadArtifactsToGitlab:
 
         # Assert
         assert result["status"] == "success"
-        assert result["labels_created"] == 2
+        assert result["labels_created"] == 1
         assert result["issues_created"] == 2
-        assert result["links_created"] == 1
+        assert result["notes_with_links_created"] == 1
 
         mock_gitlab_project_for_upload.labels.list.assert_called_once()
-        expected_label_calls = [call({'name': 'Epic::New Epic', 'color': '#F0AD4E'}), call({'name': 'Type::Bug', 'color': '#F0AD4E'})]
+        expected_label_calls = [call({'name': 'Type::Bug', 'color': '#F0AD4E'})]
         mock_gitlab_project_for_upload.labels.create.assert_has_calls(expected_label_calls, any_order=True)
 
         expected_issue_calls = [
-            call({'title': 'Implement New Feature', 'labels': ['Type::Story', 'Epic::New Epic'], 'description': 'This is a new feature.'}),
+            call({'title': 'Implement New Feature', 'labels': ['Type::Story'], 'description': 'This is a new feature.'}),
             call({'title': 'Fix Critical Bug', 'labels': ['Type::Bug'], 'description': 'A critical bug to be fixed.'})
         ]
         mock_gitlab_project_for_upload.issues.create.assert_has_calls(expected_issue_calls, any_order=True)
@@ -289,3 +371,39 @@ class TestUploadArtifactsToGitlab:
         mock_gitlab_project_for_upload.issues.get.assert_called_once_with(50)
         mock_issue_for_note = mock_gitlab_project_for_upload.issues.get.return_value
         mock_issue_for_note.notes.create.assert_called_once_with({'body': '/blocked by #1001'})
+
+    def test_upload_artifacts_creates_issue_links_for_contains_type(self, mock_gitlab_project_for_upload):
+        # Arrange
+        project_map = {
+            "nodes": [
+                {"id": "NEW_EPIC_1", "title": "My New Epic", "labels": ["Type::Epic"], "description": ""},
+                {"id": "NEW_STORY_1", "title": "My New Story", "labels": ["Type::Story"], "description": ""}
+            ],
+            "links": [{"source": "NEW_EPIC_1", "target": "NEW_STORY_1", "type": "contains"}]
+        }
+
+        # Mock the created issues
+        mock_epic = MagicMock()
+        mock_epic.iid = 2001
+        mock_story = MagicMock()
+        mock_story.iid = 2002
+
+        # Adjust side effects for issue creation and retrieval
+        mock_gitlab_project_for_upload.issues.create.side_effect = [mock_epic, mock_story]
+        mock_gitlab_project_for_upload.issues.get.return_value = mock_epic
+
+        # Act
+        result = upload_artifacts_to_gitlab(project_map)
+
+        # Assert
+        assert result["status"] == "success"
+        assert result["issue_links_created"] == 1
+
+        # 1. Verify that the epic issue was retrieved to create the link from it
+        mock_gitlab_project_for_upload.issues.get.assert_called_once_with(mock_epic.iid)
+
+        # 2. Verify that the links.create method was called on the epic with the story's iid
+        mock_epic.links.create.assert_called_once_with({
+            'target_project_id': mock_gitlab_project_for_upload.id,
+            'target_issue_iid': mock_story.iid
+        })

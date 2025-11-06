@@ -66,8 +66,6 @@ def get_issue_filepath(title: str, labels: list[str]) -> str | None:
     filename = f"{_slugify(title)}.md"
     if is_epic:
         filename = "epic.md"
-    elif is_story:
-        filename = f"story-{_slugify(title)}.md"
 
     backbone_label = next((label for label in labels if label.startswith("Backbone::")), None)
     
@@ -302,6 +300,7 @@ def build_project_map() -> dict:
 def upload_artifacts_to_gitlab(project_map: dict) -> dict:
     """
     Uploads new artifacts (labels, issues, links) from a project map to GitLab.
+    This now includes creating 'relates_to' issue links for Epic-Story hierarchy.
     """
     try:
         gl = get_gitlab_client()
@@ -314,7 +313,8 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
 
     labels_created_count = 0
     issues_created_count = 0
-    links_created_count = 0
+    notes_with_links_count = 0
+    issue_links_created_count = 0
     
     # --- 1. Handle Labels ---
     try:
@@ -349,9 +349,10 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
     except gitlab.exceptions.GitlabError as e:
         return {"status": "error", "message": f"Failed to create issues: {e}"}
 
-    # --- 3. Create Links (Notes) ---
+    # --- 3. Create Links (as Notes for /blocking etc.) ---
     try:
-        for link in project_map.get("links", []):
+        blocking_links = [link for link in project_map.get("links", []) if link.get("type") == "blocks"]
+        for link in blocking_links:
             source_id_str = str(link.get("source"))
             target_id = link.get("target")
             
@@ -361,17 +362,40 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
                     continue
 
                 target_issue = project.issues.get(target_id)
-                
-                if link["type"] == "blocks":
-                    note_body = f"/blocked by #{source_new_iid}"
-                    target_issue.notes.create({'body': note_body})
-                    links_created_count += 1
+                note_body = f"/blocked by #{source_new_iid}"
+                target_issue.notes.create({'body': note_body})
+                notes_with_links_count += 1
     except gitlab.exceptions.GitlabError as e:
-        return {"status": "error", "message": f"Failed to create links: {e}"}
+        return {"status": "error", "message": f"Failed to create links in notes: {e}"}
+
+    # --- 4. Create Issue Links (for Epic-Story hierarchy) ---
+    try:
+        contains_links = [link for link in project_map.get("links", []) if link.get("type") == "contains"]
+        for link in contains_links:
+            source_id = link.get("source")
+            target_id = link.get("target")
+
+            # Resolve IIDs for both source (Epic) and target (Story)
+            source_iid = new_issue_id_map.get(str(source_id), source_id)
+            target_iid = new_issue_id_map.get(str(target_id), target_id)
+
+            if not all(isinstance(i, int) for i in [source_iid, target_iid]):
+                print(f"[WARN] Skipping link creation for source '{source_id}' -> target '{target_id}' due to invalid IID.")
+                continue
+
+            # Get the source issue object and create the link to the target
+            source_issue = project.issues.get(source_iid)
+            source_issue.links.create({'target_project_id': project.id, 'target_issue_iid': target_iid})
+            issue_links_created_count += 1
+            print(f"[INFO] Created 'relates_to' link from Epic #{source_iid} to Story #{target_iid}")
+
+    except gitlab.exceptions.GitlabError as e:
+        return {"status": "error", "message": f"Failed to create issue links: {e}"}
 
     return {
         "status": "success",
         "labels_created": labels_created_count,
         "issues_created": issues_created_count,
-        "links_created": links_created_count
+        "notes_with_links_created": notes_with_links_count,
+        "issue_links_created": issue_links_created_count
     }

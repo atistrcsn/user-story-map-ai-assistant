@@ -62,14 +62,14 @@ Content: This epic covers all features related to user profiles.
               "id": "NEW_1",
               "title": "Story: Upload Profile Picture",
               "description": "As a user, I can upload a JPG or PNG file to serve as my profile picture.",
-              "labels": ["Type::Story", "Epic::Profile-Management"],
+              "labels": ["Type::Story", "Backbone::User-Access"],
               "dependencies": {"blocks": ["NEW_2"]}
             },
             {
               "id": "NEW_2",
               "title": "Task: Create API endpoint for upload",
               "description": "Develop a POST endpoint at /api/users/me/avatar.",
-              "labels": ["Type::Task", "Story::Upload-Profile-Picture"]
+              "labels": ["Type::Task"]
             }
           ]
         }
@@ -79,7 +79,7 @@ Content: This epic covers all features related to user profiles.
         mock_generate_content.return_value = mock_response_object
 
         # Act
-        plan = generate_implementation_plan(user_prompt, context_content)
+        plan = generate_implementation_plan(user_prompt, context_content, [])
 
         # Assert
         mock_generate_content.assert_called_once()
@@ -94,6 +94,6 @@ Content: This epic covers all features related to user profiles.
         assert len(issues) == 2
         assert issues[0]["id"] == "NEW_1"
         assert issues[0]["title"] == "Story: Upload Profile Picture"
-        assert "Type::Task" in issues[1]["labels"]
+        assert issues[1]["labels"] == ["Type::Task"]
         assert issues[0]["dependencies"]["blocks"] == ["NEW_2"]
 
