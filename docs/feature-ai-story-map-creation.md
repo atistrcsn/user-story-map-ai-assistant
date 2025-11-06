@@ -23,7 +23,7 @@ The process is interactive, with the AI performing analysis and proposing soluti
 **3. Two-Phase AI Analysis (Context-Aware)**
 *   **Státusz:** `[FOLYAMATBAN]`
 *   **Understanding:** This strategy addresses the challenge of managing large project contexts and LLM token limits, ensuring scalability and accuracy.
-    *   **Phase 1 (Pre-filtering):** `[FOLYAMATBAN]` A smaller, faster LLM is used to intelligently filter the vast amount of project documentation and existing issues. It receives the user's request and a list of all available documents/issues (typically with their titles and auto-generated summaries). Its task is to identify and return a list of the 10-15 most relevant files/issues.
+    *   **Phase 1 (Pre-filtering):** `[KÉSZ]` A smaller, faster LLM is used to intelligently filter the vast amount of project documentation and existing issues. It receives the user's request and a list of all available documents/issues (typically with their titles and auto-generated summaries). Its task is to identify and return a list of the 10-15 most relevant files/issues.
     *   **Phase 2 (Deep Analysis):** `[FÜGGŐBEN]` The primary, more powerful LLM then performs a detailed analysis, but only on the pre-filtered, highly relevant subset of documents. This focused context allows for more accurate and efficient reasoning.
 *   **Importance:** Prevents LLM context window overflows, reduces computational cost, and improves the precision of the AI's analysis by focusing on pertinent information.
 

@@ -264,6 +264,87 @@ def _generate_markdown_content_from_dict(issue_dict):
 """
     return content
 
+def generate_local_artifacts(proposed_issues: list[dict], project_map_path: str) -> dict:
+    """
+    Generates local Markdown files for proposed issues and updates the project map,
+    avoiding the creation of duplicates.
+    """
+    # Load existing project map
+    project_map_data = {"doctrine": {}, "nodes": [], "links": []}
+    if os.path.exists(project_map_path):
+        with open(project_map_path, 'r') as f:
+            project_map_data = yaml.safe_load(f)
+
+    # Create a set of existing "NEW_" issues for quick lookup
+    existing_new_issues = set()
+    for node in project_map_data.get("nodes", []):
+        if str(node.get("id", "")).startswith("NEW_"):
+            title = node.get("title")
+            # Use a frozenset for labels to make the tuple hashable
+            labels = frozenset(sorted(node.get("labels", [])))
+            existing_new_issues.add((title, labels))
+
+    new_nodes_data = []
+    new_links_data = []
+    generated_count = 0
+    skipped_count = 0
+    
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    for issue_dict in proposed_issues:
+        # Check for duplicates before processing
+        prop_title = issue_dict.get("title")
+        prop_labels = frozenset(sorted(issue_dict.get("labels", [])))
+        if (prop_title, prop_labels) in existing_new_issues:
+            skipped_count += 1
+            continue # Skip this issue as it's a duplicate
+
+        # 1. Generate content and path
+        markdown_content = _generate_markdown_content_from_dict(issue_dict)
+        relative_filepath = _get_issue_filepath_from_dict(issue_dict)
+        
+        if relative_filepath:
+            full_filepath = os.path.join(DATA_DIR, relative_filepath)
+            os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
+            with open(full_filepath, 'w', encoding='utf-8') as f:
+                f.write(markdown_content)
+
+            # 2. Build node for project map
+            temp_id_counter = len([n for n in project_map_data["nodes"] if str(n.get("id")).startswith("NEW_")]) + generated_count + 1
+            temp_iid = f"NEW_{temp_id_counter}"
+
+            node = {
+                "id": temp_iid,
+                "title": issue_dict.get("title", ""),
+                "type": "Issue",
+                "state": issue_dict.get("state", "opened"),
+                "web_url": "N/A",
+                "labels": issue_dict.get("labels", []),
+                "local_path": relative_filepath
+            }
+            new_nodes_data.append(node)
+            generated_count += 1
+
+            # 3. Parse relationships (if any)
+            all_text_to_parse = [issue_dict.get("description", "")]
+            for text in all_text_to_parse:
+                found_relationships = parse_relationships(temp_iid, text)
+                new_links_data.extend(found_relationships)
+
+    # Merge new data into the project map
+    project_map_data["nodes"].extend(new_nodes_data)
+    project_map_data["links"].extend(new_links_data)
+
+    with open(project_map_path, 'w') as f:
+        yaml.dump(project_map_data, f, sort_keys=False)
+
+    return {
+        "status": "success",
+        "generated_count": generated_count,
+        "skipped_count": skipped_count,
+        "new_nodes": new_nodes_data
+    }
+
 def upload_artifacts_to_gitlab(project_map: dict) -> dict:
     """
     Uploads new artifacts (labels, issues, links) from a project map to GitLab.
