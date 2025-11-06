@@ -64,14 +64,15 @@ All documentation within this `GEMINI.md` file must be written in English to ens
 
 ## GitLab Community Edition Limitations
 
-**Attention:** This project uses the GitLab Community Edition (CE). This version does **not** support native issue dependencies (e.g., `blocked by`, `blocking`).
+**Attention:** This project uses the GitLab Community Edition (CE). Our investigation has shown that the CE version's API (both REST and GraphQL) does **not** reliably expose native parent-child work item relationships (i.e., "Child items").
 
-Therefore, the project follows a custom convention for managing dependencies:
+Due to this platform limitation, the project will adhere to the following conventions:
 
-1.  **Dependency Declaration:** Dependencies must be declared exclusively in **comments** using the format `/blocked by #<iid>` or `/blocking #<iid>`.
-2.  **Parsing Logic:** The system must parse issue **comments** to build the dependency graph, not the issue description.
+1.  **No Native Hierarchy:** The synchronization script will **not** attempt to discover or model any parent-child (Epic -> Story -> Task) relationships that might be configured in the GitLab UI.
+2.  **Flat Structure:** All items fetched from GitLab, regardless of their type (Issue, Task, etc.), will be treated as simple, flat issues.
+3.  **Dependency Management:** Dependencies between issues will be managed exclusively through text-based references in comments and descriptions (e.g., `/blocking #<iid>`, `/blocked by #<iid>`), which the script can reliably parse.
 
-**All code handling GitLab issues must strictly adhere to this convention.**
+**All synchronization logic must strictly adhere to this simplified, flat-structure approach.**
 
 ## Holistic Implementation Mandate
 

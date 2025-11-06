@@ -2,20 +2,10 @@ doctrine:
   gemini_md_path: /docs/spec/GEMINI.md
   gemini_md_commit_hash: TODO
 nodes:
-- id: 11
-  title: Content Creation Epic
-  type: Issue
-  state: opened
-  web_url: https://gitlab.hobbes.hu/hmedia/gitlab-ai-assistant/-/issues/11
-  labels:
-  - Backbone::Core-Functionality
-  - Epic::Content-Creation
-  - Type::Epic
-  local_path: backbones/core-functionality/epics/content-creation.md
 - id: 5
   title: todo1
   type: Issue
-  state: opened
+  state: closed
   web_url: https://gitlab.hobbes.hu/hmedia/gitlab-ai-assistant/-/work_items/5
   labels: []
   local_path: _unassigned/todo1.md

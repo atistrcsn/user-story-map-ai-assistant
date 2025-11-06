@@ -4,6 +4,7 @@ import os
 import glob
 import gitlab_service
 import ai_service
+from rich.console import Console
 
 app = typer.Typer()
 
@@ -47,46 +48,74 @@ def create_feature(
     """
     Initiates the AI-assisted workflow to create a new feature, starting with context pre-filtering.
     """
-    typer.echo(f"Starting AI-assisted creation for feature: '{feature_description}'")
+    console = Console()
+    
+    console.print(f"[bold]Starting AI-assisted creation for feature:[/bold] '{feature_description}'")
     
     # Step 1: Smart Sync to ensure the project map is up-to-date
-    typer.echo("Performing smart sync with GitLab...")
-    sync_result = gitlab_service.smart_sync()
-    if sync_result["status"] == "error":
-        typer.secho(f"Error during sync: {sync_result['message']}", fg=typer.colors.RED)
-        raise typer.Exit(1)
+    with console.status("[bold green]Performing smart sync with GitLab...[/bold green]"):
+        sync_result = gitlab_service.smart_sync()
+        if sync_result["status"] == "error":
+            console.print(f"[bold red]Error during sync:[/bold red] {sync_result['message']}")
+            raise typer.Exit(1)
     
     if sync_result["updated_count"] > 0:
-        typer.echo(f"Sync complete. Found {sync_result['updated_count']} updates. Rebuilding project map...")
-        build_result = gitlab_service.build_project_map()
-        if build_result["status"] == "error":
-            typer.secho(f"Error rebuilding project map: {build_result['message']}", fg=typer.colors.RED)
-            raise typer.Exit(1)
-        with open(PROJECT_MAP_PATH, 'w') as f:
-            yaml.dump(build_result["map_data"], f, sort_keys=False)
-        typer.secho("Project map updated.", fg=typer.colors.GREEN)
+        with console.status("[bold green]Sync complete. Rebuilding project map...[/bold green]"):
+            build_result = gitlab_service.build_project_map()
+            if build_result["status"] == "error":
+                console.print(f"[bold red]Error rebuilding project map:[/bold red] {build_result['message']}")
+                raise typer.Exit(1)
+            with open(PROJECT_MAP_PATH, 'w') as f:
+                yaml.dump(build_result["map_data"], f, sort_keys=False)
+        console.print("[green]✓ Project map updated.[/green]")
     else:
-        typer.secho("Project map is already up-to-date.", fg=typer.colors.GREEN)
+        console.print("[green]✓ Project map is already up-to-date.[/green]")
 
     # Step 2: Gather all potential context sources
-    typer.echo("\nGathering all potential context sources...")
-    doc_sources = _get_context_from_docs()
-    map_sources = _get_context_from_project_map()
-    all_sources = doc_sources + map_sources
-    typer.echo(f"Found {len(all_sources)} potential context sources.")
+    with console.status("[bold green]Gathering all potential context sources...[/bold green]"):
+        doc_sources = _get_context_from_docs()
+        map_sources = _get_context_from_project_map()
+        all_sources = doc_sources + map_sources
+    console.print(f"Found {len(all_sources)} potential context sources.")
 
     # Step 3: Call AI service for pre-filtering
-    typer.echo("Sending context to AI for pre-filtering analysis...")
-    relevant_files = ai_service.get_relevant_context_files(feature_description, all_sources)
+    with console.status("[bold green]Sending context to AI for pre-filtering analysis...[/bold green]"):
+        relevant_files = ai_service.get_relevant_context_files(feature_description, all_sources)
 
     if not relevant_files:
-        typer.secho("The AI could not identify any relevant context files.", fg=typer.colors.YELLOW)
+        console.print("[yellow]Warning: The AI could not identify any relevant context files. Deep analysis will proceed without file context.[/yellow]")
     else:
-        typer.secho("AI analysis complete. The following files were identified as most relevant:", fg=typer.colors.GREEN)
+        console.print("[bold green]✓ AI pre-filtering complete. Most relevant files:[/bold green]")
         for file_path in relevant_files:
-            typer.echo(f"  - {file_path}")
+            console.print(f"  - {file_path}")
             
-    typer.echo("\nPre-filtering phase complete. Next step would be deep analysis with this context.")
+    # Step 4: Read content of relevant files for deep analysis
+    context_content = ""
+    if relevant_files:
+        with console.status("[bold green]Reading content of relevant files...[/bold green]"):
+            contents = []
+            for file_path in relevant_files:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        contents.append(f"---\nFile: {file_path}\nContent: {f.read()}\n---")
+                except Exception:
+                    console.print(f"[yellow]Warning: Could not read file {file_path}. Skipping.[/yellow]")
+            context_content = "\n".join(contents)
+    
+    # Step 5: Call AI service for deep analysis
+    with console.status("[bold green]Sending context to AI for deep analysis to generate plan...[/bold green]"):
+        plan = ai_service.generate_implementation_plan(feature_description, context_content)
+
+    console.print("\n[bold green]✓ AI deep analysis complete. Generated Implementation Plan:[/bold green]")
+    
+    if not plan or not plan.get("proposed_issues"):
+        console.print("[yellow]The AI did not propose any issues for the implementation plan.[/yellow]")
+    else:
+        # Pretty print the plan
+        from rich.pretty import pprint
+        pprint(plan)
+
+    console.print("\n[bold]Workflow complete.[/bold] Next steps would be structured dialogue and local generation.")
 
 sync_app = typer.Typer()
 app.add_typer(sync_app, name="sync", help="Synchronize data from GitLab.")

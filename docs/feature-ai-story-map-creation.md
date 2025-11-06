@@ -4,7 +4,7 @@ This document captures the Gemini AI agent's detailed understanding of the "AI-A
 
 ### Core Purpose
 
-The primary goal of this feature is to transform high-level business ideas (e.g., "users should have profile pictures") into structured, actionable development tasks within GitLab. The AI acts as a proactive, context-aware planning partner, leveraging the project's entire knowledge base (code, documentation, existing issues) to propose and facilitate the creation of new Epics, Stories, and their dependencies.
+The primary goal of this feature is to transform high-level business ideas (e.g., "users should have profile pictures") into structured, actionable issues (epics, stories) within GitLab. The AI acts as a proactive, context-aware planning partner, leveraging the project's entire knowledge base (code, documentation, existing issues) to propose and facilitate the creation of new Epics, Stories, and their dependencies.
 
 The process is interactive, with the AI performing analysis and proposing solutions, while the user retains ultimate control and decision-making authority.
 
@@ -21,15 +21,15 @@ The process is interactive, with the AI performing analysis and proposing soluti
 *   **Importance:** This is the starting trigger for the entire planning workflow.
 
 **3. Two-Phase AI Analysis (Context-Aware)**
-*   **Státusz:** `[FOLYAMATBAN]`
+*   **Státusz:** `[KÉSZ]`
 *   **Understanding:** This strategy addresses the challenge of managing large project contexts and LLM token limits, ensuring scalability and accuracy.
     *   **Phase 1 (Pre-filtering):** `[KÉSZ]` A smaller, faster LLM is used to intelligently filter the vast amount of project documentation and existing issues. It receives the user's request and a list of all available documents/issues (typically with their titles and auto-generated summaries). Its task is to identify and return a list of the 10-15 most relevant files/issues.
-    *   **Phase 2 (Deep Analysis):** `[FÜGGŐBEN]` The primary, more powerful LLM then performs a detailed analysis, but only on the pre-filtered, highly relevant subset of documents. This focused context allows for more accurate and efficient reasoning.
+    *   **Phase 2 (Deep Analysis):** `[KÉSZ]` The primary, more powerful LLM then performs a detailed analysis, but only on the pre-filtered, highly relevant subset of documents. This focused context allows for more accurate and efficient reasoning.
 *   **Importance:** Prevents LLM context window overflows, reduces computational cost, and improves the precision of the AI's analysis by focusing on pertinent information.
 
 **4. Structured Dialogue (User Confirmation)**
 *   **Státusz:** `[KÉSZ]`
-*   **Understanding:** The AI engages in an interactive, step-by-step conversation with the user. Instead of presenting a monolithic plan, it breaks down its proposals into logical chunks (e.g., task decomposition, hierarchical placement, dependency suggestions) and seeks explicit user confirmation or modification at each stage.
+*   **Understanding:** The AI engages in an interactive, step-by-step conversation with the user. Instead of presenting a monolithic plan, it breaks down its proposals into logical chunks (e.g., issue breakdown, hierarchical placement, dependency suggestions) and seeks explicit user confirmation or modification at each stage.
 *   **Importance:** Enhances user control, makes the planning process transparent, reduces cognitive load on the user, and minimizes the chance of errors or misunderstandings.
 
 **5. Local Generation**

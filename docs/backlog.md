@@ -4,7 +4,7 @@ This document serves as a living backlog for all tasks, features, and implementa
 
 ## Feature: AI-Assisted Story Map Creation
 
-This feature enables a user to provide a high-level idea and have the AI assistant analyze the project context, propose a breakdown into epics and stories, identify dependencies, and finally, create the new issues in GitLab.
+This feature enables a user to provide a high-level idea and have the AI assistant analyze the project context, propose a breakdown into epics and stories, identify dependencies (like blocking relationships), and finally, create the new issues in GitLab.
 
 ### Enhanced End-to-End Workflow (Optimized Plan)
 
@@ -16,7 +16,7 @@ This feature enables a user to provide a high-level idea and have the AI assista
     *   **3.1. Pre-filtering:** A small, fast LLM receives the user's request and a list of all documents/issues (with summaries). It returns a list of the top 10-15 most relevant files.
     *   **3.2. Deep Analysis:** The main, powerful LLM performs the detailed analysis using only this pre-filtered, highly relevant context.
 
-4.  **Structured Dialogue (User Confirmation):** The AI engages in a step-by-step confirmation process, asking for approval at each logical stage (e.g., after task decomposition, after placement, after dependency suggestion) to ensure clarity and user control.
+4.  **Structured Dialogue (User Confirmation):** The AI engages in a step-by-step confirmation process, asking for approval at each logical stage (e.g., after the issue breakdown, after placement, after dependency suggestion) to ensure clarity and user control.
 
 5.  **Local Generation:** Based on the final approval, the AI performs the local changes:
     *   Creates new `.md` files in the `gitlab_data` directory.
@@ -107,5 +107,36 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 6.  **Documentation:**
     *   Update all relevant project documents (`backlog.md`, `feature-ai-story-map-creation.md`, `architecture-design-document.md`) to reflect the new module and the implementation's progress.
+
+## Implement AI Integration (Deep Analysis)
+
+**Status:** DONE
+
+**Description:** Implement the second phase of the AI analysis. This involves using a powerful AI model to analyze the content of the pre-filtered, relevant files and generate a structured implementation plan in JSON format. This plan will define the new epics, stories, and their relationships.
+
+**Implementation Plan:**
+
+1.  **Test-Driven Development (`test_ai_service.py`):**
+    *   Create a new test case `test_generate_implementation_plan` in `scripts/tests/test_ai_service.py`.
+    *   The test will mock the AI API call and provide a sample user request and context content as input.
+    *   It will define an expected JSON output representing the structured plan and assert that the new `generate_implementation_plan` function correctly parses this JSON into a Python dictionary.
+
+2.  **AI Service Enhancement (`ai_service.py`):**
+    *   Create a new function `generate_implementation_plan(user_prompt: str, context_content: str)`.
+    *   This function will construct a detailed prompt instructing the AI to act as a senior software architect, analyze the provided context, and return a single JSON object containing a `proposed_issues` list.
+    *   The prompt will specify the exact JSON structure required for each proposed issue (title, description, labels, etc.).
+
+3.  **CLI Workflow Update (`gemini_cli.py`):**
+    *   Modify the `create-feature` command.
+    *   After receiving the list of relevant files from the pre-filtering step, implement a new helper function to read the full content of these files into a single string.
+    *   Call the new `ai_service.generate_implementation_plan` with the user's request and the aggregated content.
+    *   For this implementation, the command will pretty-print the resulting structured plan to the console for verification.
+
+4.  **Verification:**
+    *   Run `pytest` to ensure the new test case passes.
+    *   Manually run the `create-feature` command to verify the end-to-end process and inspect the structured plan printed to the console.
+
+5.  **Documentation:**
+    *   Upon completion, activate the "Documentation Reconciliation Protocol" to update all relevant documents with the status of this task.
 
 ## Future Features / Enhancements:

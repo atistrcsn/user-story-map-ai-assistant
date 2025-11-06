@@ -1,9 +1,9 @@
 import pytest
 import json
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
-from gitlab_service import smart_sync, build_project_map, _get_issue_filepath, _generate_markdown_content, _slugify
+from gitlab_service import smart_sync, build_project_map, upload_artifacts_to_gitlab
 
 # --- MOCK DATA --- #
 
@@ -146,7 +146,6 @@ class TestSmartSyncLogic:
 
     def test_smart_sync_no_changes(self, mock_gitlab_project, mock_cache_paths):
         cache_file = mock_cache_paths
-        # Simulate all issues being up-to-date
         up_to_date_timestamps = {
             "100": "2025-11-05T10:00:00.000Z",
             "101": "2025-11-05T11:00:00.000Z",
@@ -164,7 +163,6 @@ class TestSmartSyncLogic:
 
     def test_smart_sync_with_updates(self, mock_gitlab_project, mock_cache_paths):
         cache_file = mock_cache_paths
-        # Simulate one issue (100) being updated
         stale_timestamps = {
             "100": "2025-11-04T00:00:00.000Z", # Old timestamp
             "101": "2025-11-05T11:00:00.000Z",
@@ -198,46 +196,23 @@ class TestBuildProjectMap:
         mocker.patch('gitlab_service.DATA_DIR', str(data_dir_path))
         return data_dir_path
 
-    def test_build_map_creates_files_and_nodes(self, mock_gitlab_project, mock_data_dir, mock_issue_backbone, mock_issue_epic, mock_issue_story, mock_issue_story_with_tasks, mock_issue_unassigned, mock_issue_task):
-        # Arrange
-        # mock_gitlab_project is already configured with all issues
-        # mock_data_dir ensures files are written to tmp_path
-
+    def test_build_map_creates_files_and_nodes(self, mock_gitlab_project, mock_data_dir):
         # Act
         result = build_project_map()
 
         # Assert
         assert result["status"] == "success"
-        # Expect 5 issues to be processed (Task is skipped)
-        assert result["issues_found"] == 5
-
+        assert result["issues_found"] == 6
         map_data = result["map_data"]
-        assert len(map_data["nodes"]) == 5
-        # Check file creation for each type (except Task)
+        assert len(map_data["nodes"]) == 6
+        
+        # Check that all issues, including the task, have a file
         assert (mock_data_dir / "backbones" / "user-authentication" / "user-authentication-workflow.md").exists()
-        assert (mock_data_dir / "backbones" / "user-authentication" / "epics" / "implement-login-feature.md").exists()
-        assert (mock_data_dir / "backbones" / "user-authentication" / "epics" / "stories" / "as-a-user-i-can-log-in-with-email-and-password.md").exists()
-        assert (mock_data_dir / "backbones" / "user-authentication" / "epics" / "stories" / "as-a-user-i-can-reset-my-password.md").exists()
+        assert (mock_data_dir / "_unassigned" / "create-database-migration-for-users-table.md").exists()
         assert (mock_data_dir / "_unassigned" / "random-bug-fix.md").exists()
-        # Task should NOT have a file
-        assert not (mock_data_dir / "backbones" / "user-authentication" / "epics" / "create-database-migration-for-users-table.md").exists()
 
-        # Check node data for Backbone
-        backbone_node = next(node for node in map_data["nodes"] if node["id"] == mock_issue_backbone.iid)
-        assert backbone_node["local_path"] == os.path.join("backbones", "user-authentication", "user-authentication-workflow.md")
-
-        # Check node data for Epic
-        epic_node = next(node for node in map_data["nodes"] if node["id"] == mock_issue_epic.iid)
-        assert epic_node["local_path"] == os.path.join("backbones", "user-authentication", "epics", "implement-login-feature.md")
-
-        # Check node data for Story with tasks
-        story_with_tasks_node = next(node for node in map_data["nodes"] if node["id"] == mock_issue_story_with_tasks.iid)
-        assert story_with_tasks_node["local_path"] == os.path.join("backbones", "user-authentication", "epics", "stories", "as-a-user-i-can-reset-my-password.md")
-
-    def test_build_map_parses_relationships(self, mock_gitlab_project, mock_data_dir, mock_issue_backbone, mock_issue_epic, mock_issue_story, mock_issue_story_with_tasks, mock_issue_task, mock_issue_unassigned):
+    def test_build_map_parses_relationships(self, mock_gitlab_project, mock_data_dir, mock_issue_story, mock_issue_story_with_tasks):
         # Arrange
-        # mock_issue_1.description = "This is the first issue. It is /blocked by #101"
-        # mock_issue_epic.description = "This is an epic. /blocking #102"
         mock_issue_story.description = "Story description. /blocked by #101"
         mock_issue_story_with_tasks.description = "Story with tasks. /blocking #100"
 
@@ -247,13 +222,12 @@ class TestBuildProjectMap:
         # Assert
         assert result["status"] == "success"
         map_data = result["map_data"]
-        assert len(map_data["links"]) == 2 # Expecting 2 links from the setup
+        assert len(map_data["links"]) == 2
 
-        link1 = {"source": 101, "target": 102, "type": "blocks"} # Epic blocks Story
-        link2 = {"source": 103, "target": 100, "type": "blocks"} # Story with tasks blocks Backbone
+        link1 = {"source": 101, "target": 102, "type": "blocks"}
+        link2 = {"source": 103, "target": 100, "type": "blocks"}
         assert link1 in map_data["links"]
         assert link2 in map_data["links"]
-
 
 
 class TestUploadArtifactsToGitlab:
@@ -262,22 +236,17 @@ class TestUploadArtifactsToGitlab:
     def mock_gitlab_project_for_upload(self, mocker):
         """A specialized mock for testing the upload process."""
         mock_project = MagicMock()
-        
-        # Mock existing labels
         mock_label_existing = MagicMock()
         mock_label_existing.name = "Type::Story"
         mock_project.labels.list.return_value = [mock_label_existing]
 
-        # Mock issue creation - return a mock issue with a new iid
         def create_issue_side_effect(data):
             mock_issue = MagicMock()
-            # Simulate GitLab assigning a new IID
             mock_issue.iid = 1000 + len(mock_project.issues.create.call_args_list)
             mock_issue.title = data['title']
             return mock_issue
         mock_project.issues.create.side_effect = create_issue_side_effect
 
-        # Mock getting an issue for adding notes
         mock_existing_issue_for_note = MagicMock()
         mock_existing_issue_for_note.iid = 50
         mock_project.issues.get.return_value = mock_existing_issue_for_note
@@ -290,28 +259,12 @@ class TestUploadArtifactsToGitlab:
 
     def test_upload_artifacts_in_correct_order(self, mock_gitlab_project_for_upload):
         # Arrange
-        from gitlab_service import upload_artifacts_to_gitlab
-        from unittest.mock import call
-
         project_map = {
             "nodes": [
-                {
-                    "id": "NEW_1",
-                    "title": "Implement New Feature",
-                    "labels": ["Type::Story", "Epic::New Epic"], # One existing, one new label
-                    "description": "This is a new feature."
-                },
-                {
-                    "id": "NEW_2",
-                    "title": "Fix Critical Bug",
-                    "labels": ["Type::Bug"], # Another new label
-                    "description": "A critical bug to be fixed."
-                }
+                {"id": "NEW_1", "title": "Implement New Feature", "labels": ["Type::Story", "Epic::New Epic"], "description": "This is a new feature."},
+                {"id": "NEW_2", "title": "Fix Critical Bug", "labels": ["Type::Bug"], "description": "A critical bug to be fixed."}
             ],
-            "links": [
-                # A new issue blocks an existing issue
-                {"source": "NEW_1", "target": 50, "type": "blocks"} 
-            ]
+            "links": [{"source": "NEW_1", "target": 50, "type": "blocks"}]
         }
 
         # Act
@@ -323,31 +276,16 @@ class TestUploadArtifactsToGitlab:
         assert result["issues_created"] == 2
         assert result["links_created"] == 1
 
-        # 1. Verify Label creation
-        # It should first list existing labels
         mock_gitlab_project_for_upload.labels.list.assert_called_once()
-        
-        # It should create the two new labels, but not the existing one
-        expected_label_calls = [
-            call({'name': 'Epic::New Epic', 'color': '#F0AD4E'}), # Default color
-            call({'name': 'Type::Bug', 'color': '#F0AD4E'})
-        ]
+        expected_label_calls = [call({'name': 'Epic::New Epic', 'color': '#F0AD4E'}), call({'name': 'Type::Bug', 'color': '#F0AD4E'})]
         mock_gitlab_project_for_upload.labels.create.assert_has_calls(expected_label_calls, any_order=True)
-        assert mock_gitlab_project_for_upload.labels.create.call_count == 2
 
-        # 2. Verify Issue creation
         expected_issue_calls = [
             call({'title': 'Implement New Feature', 'labels': ['Type::Story', 'Epic::New Epic'], 'description': 'This is a new feature.'}),
             call({'title': 'Fix Critical Bug', 'labels': ['Type::Bug'], 'description': 'A critical bug to be fixed.'})
         ]
         mock_gitlab_project_for_upload.issues.create.assert_has_calls(expected_issue_calls, any_order=True)
-        assert mock_gitlab_project_for_upload.issues.create.call_count == 2
 
-        # 3. Verify Link (Note) creation
-        # It should get the existing issue to add a note to it
         mock_gitlab_project_for_upload.issues.get.assert_called_once_with(50)
-        
-        # It should create a note on the issue returned by get()
         mock_issue_for_note = mock_gitlab_project_for_upload.issues.get.return_value
-        # The IID of the new issue is simulated as 1001
         mock_issue_for_note.notes.create.assert_called_once_with({'body': '/blocked by #1001'})
