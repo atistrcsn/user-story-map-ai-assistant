@@ -29,31 +29,25 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 ---
 
-## Current Phase: GitLab Synchronization Module Development
+## Current Phase: AI-Assisted Feature Implementation
 
 ### Implemented:
 
-*   Project structure (`gitlab_data`, `scripts` directories).
-*   Modern Python environment setup (`uv`, `pyproject.toml`).
-*   Configuration handling (`config.py`, `.gitignore` entry).
-*   Initial `sync_gitlab.py` script with GitLab API connection and basic data fetching (issues, labels, milestones).
-*   Added issue type to Markdown frontmatter.
+*   **Core Project Structure:** (`gitlab_data`, `scripts` directories).
+*   **Modern Python Environment:** (`uv`, `pyproject.toml`, `pytest`).
+*   **Initial GitLab Sync Script:** (`sync_gitlab.py`) for basic data fetching.
+*   **`gemini-cli` Command-Line Tool:** Initial version created with `typer`.
+*   **Refactored Service Layer (`gitlab_service.py`):**
+    *   `smart_sync`: Intelligens, időbélyeg alapú szinkronizáció a GitLab-bel.
+    *   `build_project_map`: Függőségi gráfot és projekt térképet épít az issue-kból.
+    *   Tiszta, tesztelhető logika, leválasztva a CLI rétegről.
+*   **Comprehensive Test Coverage:** Unit tesztek a CLI és a service rétegre is (`test_gemini_cli.py`, `test_gitlab_service.py`).
+
 ### Next Steps (Planned):
 
-*   **Implement File Generation Logic:**
-    *   Define agile hierarchy mapping (Backbone, Epic, Story, Task) based on GitLab labels.
-    *   Implement functions for generating file paths and filenames for issues.
-    *   Implement functions for generating Markdown content with YAML frontmatter for issues.
-    *   Integrate file writing logic into the `main` function.
-    *   Add optional `gitlab_data` directory cleanup before sync.
-*   **Implement Project Map Generation:**
-    *   Parse issue descriptions for `/blocked by #<IID>` and `/blocking #<IID>` patterns.
-    *   Use `networkx` to build a dependency graph.
-    *   Save the graph in `node-link` format to `project_map.yaml`.
-*   **Handle Unassigned Issues:** Place issues without hierarchy labels into a dedicated `_unassigned` directory.
-
-## Current Development
-
-*   **Testing Strategy Implementation:** In progress. Test environment set up, initial unit tests for `_slugify`, `_generate_markdown_content`, and `_get_issue_filepath` implemented and passing. Label parsing logic for Epic and Story issues clarified and implemented.
+*   **AI Integration (Pre-filtering):** Implement the first phase of AI analysis within the `create feature` command to identify relevant context files.
+*   **AI Integration (Deep Analysis):** Implement the second phase to generate a structured plan based on the filtered context.
+*   **Structured Dialogue:** Create the interactive user confirmation workflow.
+*   **Local Generation & GitLab Upload:** Implement the final steps to create artifacts locally and upload them to GitLab.
 
 ## Future Features / Enhancements:
