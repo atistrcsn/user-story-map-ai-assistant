@@ -21,6 +21,7 @@ The system is composed of three primary logical components:
 *   **Python for Backend:** Python is selected due to its rich ecosystem, strong support for API interactions (`python-gitlab`), and rapid development capabilities.
 *   **`uv` and `pyproject.toml`:** For modern, efficient, and reproducible Python dependency and environment management.
 *   **Configuration Management:** Sensitive information (GitLab URL, Private Token) is externalized into a `.gitignore`-d `.env` file.
+*   **Hierarchy via Issue Links:** To ensure a scalable and robust representation of the project hierarchy, the relationship between Epics and Stories is defined using GitLab's native "Related items" feature (API: Issue Links). This approach avoids cluttering the label system and provides a more explicit and maintainable way to manage parent-child relationships compared to the previous label-based convention.
 
 ## 4. Component Diagram
 
@@ -56,12 +57,9 @@ graph TD
 ├── gitlab_data/             # Synchronized GitLab data (Markdown files)
 │   ├── backbones/
 │   │   └── <backbone_name>/
-│   │       └── epics/
-│   │           └── <epic_name>/
-│   │               └── stories/
-│   │                   └── <story_name>/
-│   │                       └── tasks/
-│   │                           └── <task_name>.md
+│   │       └── <epic_name>/
+│   │           ├── epic.md
+│   │           └── story-<story_name>.md
 ├── scripts/                 # Python synchronization scripts
 │   ├── config.py            # GitLab API configuration (ignored by git)
 │   ├── pyproject.toml       # Python project dependencies (uv)

@@ -114,6 +114,21 @@ A GitLab-re történő visszatöltés hibatűrése kritikusan fontos, hogy a ren
 *   **API Lassítás (Throttling):** A feltöltő szkriptnek egy minimális (pl. 100-200ms) várakozást kell beiktatnia az API hívások közé a rate limit elkerülése érdekében.
 *   **Tranzakciós Logika és Rollback:** A feltöltési folyamat naplózza a tervezett lépéseket. Hiba esetén megpróbálja visszavonni a már végrehajtott műveleteket (pl. letörli a sikeresen létrehozott, de függőségekkel még el nem látott issue-kat), vagy egyértelmű riportot ad a felhasználónak a manuális helyreállításhoz.
 
+### d. Hierarchia-kezelés "Related items" Alapokon
+
+A korábbi, címke-alapú (`Epic::`) hierarchia-kezelést egy robusztusabb, a GitLab "Related items" funkciójára (API nevén: Issue Links) épülő modell váltotta fel. Ez a megközelítés egyértelműbb és jobban skálázható. A helyes fájlrendszer-hierarchia felépítését a `gitlab_service.py` szkript egy többmenetes (multi-pass) feldolgozási logikával biztosítja.
+
+*   **1. Menet (Pass 1): Epik-ek Feldolgozása:** A szkript először végigmegy az összes letöltött issue-n, és kizárólag a `Type::Epic` címkével rendelkezőket dolgozza fel. Létrehozza a hozzájuk tartozó könyvtárakat (`/backbones/<backbone_neve>/<epic_neve>/`) és elmenti az `epic.md` fájlt. Ezzel egy időben egy belső térképet (dictionary) épít, ami az epik issue IID-jét a lokális könyvtárának útvonalához köti.
+
+*   **2. Menet (Pass 2): Sztorik és Kapcsolatok Feldolgozása:** A második körben a szkript a `Type::Story` címkéjű issue-kat dolgozza fel. Minden egyes sztori esetében egy API hívást intéz a GitLab felé (`issue.links.list()`), hogy lekérdezze a hozzá tartozó "Related items"-eket.
+    *   Ha a linkek között talál egy olyan issue-t, ami `Type::Epic` címkével rendelkezik, akkor az 1. menetben felépített térkép segítségével megkeresi a szülő epik könyvtárát.
+    *   A sztori Markdown fájlját (`story-<sztori_neve>.md`) ezután a megfelelő epik könyvtárába menti, az `epic.md` mellé.
+    *   Ezzel egyúttal a `project_map.yaml`-ban is rögzíti a szülő-gyermek (`contains`) kapcsolatot a két issue között.
+
+*   **3. Menet (Pass 3): Szöveges Függőségek Feldolgozása:** Végül a szkript az összes issue leírását és kommentjét elemzi a szövegesen definiált (`/blocking`, `/blocked by`) kapcsolatok után kutatva, és ezeket is hozzáadja a `project_map.yaml`-ban definiált gráfhoz.
+
+Ez a többlépcsős megközelítés garantálja, hogy a sztorik mindig a megfelelő szülő epik alá kerüljenek a fájlrendszerben, pontosan leképezve a GitLab-ben definiált struktúrát.
+
 ## 6. Továbbgondolható Fejlesztési Irányok
 
 *   **Vector Store Integráció:** A `/.gemini_cache/` kiegészíthető egy lokális vector store-ral (pl. ChromaDB) a szemantikus kereséshez. **Megjegyzés:** Ez egy jövőbeli, opcionális fejlesztés. A kezdeti implementáció a 1.a pontban leírt, LLM-alapú előszűrést alkalmazza.

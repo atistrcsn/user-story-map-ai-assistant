@@ -11,7 +11,7 @@ This project aims to create a robust, file-based system for synchronizing GitLab
 
 *   **Entities:** Issues, Labels, Milestones.
 *   **Target:** Local, directory-based filesystem.
-*   **Hierarchy:** Agile methodology-based (Backbone -> Epic -> Story -> Task), defined by GitLab Labels.
+*   **Hierarchy:** Agile methodology-based (Backbone -> Epic -> Story), defined by GitLab's "Related items" feature (Issue Links) to create parent-child relationships between Epics and Stories.
 *   **Format:** Markdown files with YAML frontmatter for metadata (iid, status, relationships, etc.).
 
 ## Current Status:

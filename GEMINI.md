@@ -62,17 +62,16 @@ Optional. Can contain information about breaking changes or reference issues by 
 
 All documentation within this `GEMINI.md` file must be written in English to ensure clarity and consistency for all contributors and AI agents.
 
-## GitLab Community Edition Limitations
+## Issue Hierarchy Management
 
-**Attention:** This project uses the GitLab Community Edition (CE). Our investigation has shown that the CE version's API (both REST and GraphQL) does **not** reliably expose native parent-child work item relationships (i.e., "Child items").
+**Authoritative Source of Hierarchy:** The parent-child relationship between Epics and Stories is managed exclusively through GitLab's **"Related items"** feature (known as **Issue Links** in the API).
 
-Due to this platform limitation, the project will adhere to the following conventions:
-
-1.  **No Native Hierarchy:** The synchronization script will **not** attempt to discover or model any parent-child (Epic -> Story -> Task) relationships that might be configured in the GitLab UI.
-2.  **Flat Structure:** All items fetched from GitLab, regardless of their type (Issue, Task, etc.), will be treated as simple, flat issues.
-3.  **Dependency Management:** Dependencies between issues will be managed exclusively through text-based references in comments and descriptions (e.g., `/blocking #<iid>`, `/blocked by #<iid>`), which the script can reliably parse.
-
-**All synchronization logic must strictly adhere to this simplified, flat-structure approach.**
+-   **Epic-Story Relationship:** A `Type::Story` issue is considered a child of a `Type::Epic` issue if, and only if, a `relates_to` link exists between them in GitLab.
+-   **Synchronization Logic:** The synchronization script (`gitlab_service.py`) employs a multi-pass strategy to build the local file hierarchy:
+    1.  It first processes all `Type::Epic` issues, creating their corresponding directories.
+    2.  It then processes all `Type::Story` issues. For each story, it queries the GitLab API for its issue links.
+    3.  If a link to a `Type::Epic` issue is found, the story's Markdown file is placed inside that Epic's directory.
+-   **No More `Epic::` Labels:** The legacy convention of using `Epic::<name>` labels to define hierarchy is now **deprecated and must not be used**. All hierarchy is derived from issue links.
 
 ## File and Directory Structure Convention
 
