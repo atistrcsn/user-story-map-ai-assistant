@@ -2,24 +2,42 @@
     "ide": {
         "hasSeenNudge": true
     },
-    "security": {
-        "auth": {
-            "selectedType": "oauth-personal"
-        }
-    },
     "privacy": {
         "usageStatisticsEnabled": false
     },
     "ui": {
         "showStatusInTitle": true,
-        "hideTips": false,
+        "hideTips": true,
         "hideBanner": true,
         "showMemoryUsage": true,
         "showLineNumbers": true,
         "useFullWidth": true,
-        "hideWindowTitle": false,
+        "hideWindowTitle": true,
         "accessibility": {
             "disableLoadingPhrases": true
+        },
+        "footer": {
+            "hideContextPercentage": false
+        },
+        "showCitations": true
+    },
+    "security": {
+        "auth": {
+            "selectedType": "gemini-api-key"
+        }
+    },
+    "general": {
+        "sessionRetention": {
+            "enabled": true
+        },
+        "enablePromptCompletion": true
+    },
+    "context": {
+        "loadMemoryFromIncludeDirectories": true
+    },
+    "tools": {
+        "shell": {
+            "showColor": true
         }
     },
     "mcpServers": {

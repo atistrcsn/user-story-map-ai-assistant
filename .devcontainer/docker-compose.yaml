@@ -6,6 +6,8 @@ services:
     volumes:
       - ../:/workspaces:cached
     command: sleep infinity
+    env_file:
+      - .env
     dns:
       - 8.8.8.8
     environment:
