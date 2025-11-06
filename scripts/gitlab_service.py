@@ -47,46 +47,47 @@ def _slugify(text):
         print(f"[DIAG] Final relative_filepath in build_project_map: {relative_filepath}")
 
 def get_issue_filepath(title: str, labels: list[str]) -> str | None:
-    print(f"[DIAG] get_issue_filepath called with title: {title}, labels: {labels}")
     """
     Determines the canonical file path for an issue based on its title and labels.
-    This is the single source of truth for generating issue file paths.
-    An Epic is treated as a directory containing an 'epic.md' file for its own description.
+    This function now primarily handles Epics and other top-level issues.
+    The file path for Stories is determined dynamically in `build_project_map`
+    by resolving their parent Epic via issue links.
     """
+    print(f"[DIAG] get_issue_filepath called with title: '{title}', labels: {labels}")
+    
+    is_epic = "Type::Epic" in labels
     is_story = "Type::Story" in labels
     is_task = "Type::Task" in labels
-    print(f"[DIAG] Inside get_issue_filepath: is_story={is_story}, is_task={is_task}")
 
     if is_task:
-        return None # Tasks are handled separately
+        return None  # Tasks are not standalone files
 
-    # Determine filename first, based SOLELY on whether it's a story.
-    filename = f"story-{_slugify(title)}.md" if is_story else f"{_slugify(title)}.md"
-    print(f"[DIAG] Inside get_issue_filepath: generated filename={filename}")
+    # Generate a base filename
+    filename = f"{_slugify(title)}.md"
+    if is_epic:
+        filename = "epic.md"
+    elif is_story:
+        filename = f"story-{_slugify(title)}.md"
 
     backbone_label = next((label for label in labels if label.startswith("Backbone::")), None)
-    epic_label = next((label for label in labels if label.startswith("Epic::")), None)
     
+    # If there's no backbone, it's unassigned for now. Stories will be reassigned later.
     if not backbone_label:
         return os.path.join("_unassigned", filename)
 
     backbone_name = _slugify(backbone_label.split("::", 1)[1])
 
-    if epic_label:
-        epic_name = _slugify(epic_label.split("::", 1)[1])
-        if not is_story: # It's an Epic
-            # The Epic's own file is special ('epic.md') and not prefixed.
-            final_path = os.path.join("backbones", backbone_name, epic_name, "epic.md")
-            print(f"[DIAG] Inside get_issue_filepath: final_path (Epic)={final_path}")
-            return final_path
-        else: # It's a Story belonging to an Epic
-            final_path = os.path.join("backbones", backbone_name, epic_name, filename)
-            print(f"[DIAG] Inside get_issue_filepath: final_path (Story with Epic)={final_path}")
-            return final_path
+    # If it's an Epic, its path is determined by its backbone.
+    if is_epic:
+        epic_name = _slugify(title) # The directory name for an epic is its slugified title
+        final_path = os.path.join("backbones", backbone_name, epic_name, filename)
+        print(f"[DIAG] Path for Epic '{title}': {final_path}")
+        return final_path
 
-    # It's a story without an epic, or another backbone-level issue. The filename is already correctly prefixed.
+    # If it's a story or another backbone-level item, place it directly under the backbone for now.
+    # Stories will be moved to their epic's directory later in the process.
     final_path = os.path.join("backbones", backbone_name, filename)
-    print(f"[DIAG] Inside get_issue_filepath: final_path (Backbone-level)={final_path}")
+    print(f"[DIAG] Path for non-Epic item '{title}': {final_path}")
     return final_path
 
 def _generate_markdown_content(issue):
@@ -181,37 +182,112 @@ def build_project_map() -> dict:
     except (ValueError, ConnectionError) as e:
         return {"status": "error", "message": str(e)}
 
-    issues = project.issues.list(all=True)
+    issues_list = project.issues.list(all=True) # Get the full list once
     
-    # Ensure the data directory exists without deleting it
     os.makedirs(DATA_DIR, exist_ok=True)
 
     nodes_data = []
     links_data = []
     unique_links_set = set()
-
-    # Keep track of all file paths managed by GitLab issues
     gitlab_managed_files = set()
+    
+    # Create a map of all issues by IID for quick lookups
+    all_issues_map = {i.iid: i for i in issues_list}
+    
+    # Create a map for epic data: {epic_iid: epic_local_path}
+    epic_map = {}
 
-    for issue in issues:
-        markdown_content = _generate_markdown_content(issue)
+    # --- Pass 1: Process Epics and other non-Story items ---
+    print("\n--- Pass 1: Processing Epics and other items ---")
+    for issue in issues_list:
+        if "Type::Story" in issue.labels:
+            continue # Skip stories for now
+
         relative_filepath = get_issue_filepath(issue.title, issue.labels)
         if not relative_filepath:
-            relative_filepath = os.path.join("_unassigned", f"{_slugify(issue.title)}.md")
-        
+            continue # Skip tasks or other non-file items
+
+        if "Type::Epic" in issue.labels:
+            epic_map[issue.iid] = os.path.dirname(relative_filepath)
+            print(f"[DIAG] Mapped Epic {issue.iid} to path: {epic_map[issue.iid]}")
+
+        # Write file and create node for the epic/other item
         full_filepath = os.path.join(DATA_DIR, relative_filepath)
         gitlab_managed_files.add(full_filepath)
-
         os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+            f.write(_generate_markdown_content(issue))
 
         node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": relative_filepath}
         nodes_data.append(node)
+
+    # --- Pass 2: Process Stories and their relationships ---
+    print("\n--- Pass 2: Processing Stories and their relationships ---")
+    for issue in issues_list:
+        if "Type::Story" not in issue.labels:
+            continue # Only process stories in this pass
+
+        parent_epic_iid = None
+        parent_epic_path = None
+
+        # Find parent epic through issue links
+        try:
+            project_issue = project.issues.get(issue.iid)
+            print(f"[DIAG] Checking links for Story {issue.iid} ({issue.title})...")
+            for link in project_issue.links.list():
+                linked_issue_iid = link.iid
+                if linked_issue_iid in all_issues_map and "Type::Epic" in all_issues_map[linked_issue_iid].labels:
+                    parent_epic_iid = linked_issue_iid
+                    parent_epic_path = epic_map.get(parent_epic_iid)
+                    print(f"[DIAG] Story {issue.iid} is linked to Epic {parent_epic_iid} with path {parent_epic_path}")
+                    break
+        except gitlab.exceptions.GitlabHttpError as e:
+            print(f"[WARN] Could not retrieve links for issue {issue.iid}, or a linked issue was not found: {e}")
+        except Exception as e:
+            print(f"[WARN] An unexpected error occurred while retrieving links for issue {issue.iid}: {e}")
+
+        # Determine file path for the story
+        story_filename = f"story-{_slugify(issue.title)}.md"
+        if parent_epic_path:
+            relative_filepath = os.path.join(parent_epic_path, story_filename)
+            link_tuple = (parent_epic_iid, issue.iid, "contains")
+            if link_tuple not in unique_links_set:
+                unique_links_set.add(link_tuple)
+                links_data.append({"source": parent_epic_iid, "target": issue.iid, "type": "contains"})
+        else:
+            backbone_label = next((label for label in issue.labels if label.startswith("Backbone::")), None)
+            if backbone_label:
+                backbone_name = _slugify(backbone_label.split("::", 1)[1])
+                relative_filepath = os.path.join("backbones", backbone_name, story_filename)
+            else:
+                relative_filepath = os.path.join("_unassigned", story_filename)
         
+        print(f"[DIAG] Final path for Story {issue.iid}: {relative_filepath}")
+
+        # Write file and create node for the story
+        full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        gitlab_managed_files.add(full_filepath)
+        os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
+        with open(full_filepath, 'w', encoding='utf-8') as f:
+            f.write(_generate_markdown_content(issue))
+
+        node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": relative_filepath}
+        nodes_data.append(node)
+
+    # --- Pass 3: Process text-based relationships for all issues ---
+    print("\n--- Pass 3: Processing text-based relationships ---")
+    for issue in issues_list:
         all_text_to_parse = [issue.description or ""]
-        for comment in issue.notes.list(all=True):
-            all_text_to_parse.append(comment.body)
+        try:
+            # We need the project-level issue object to call .notes.list()
+            project_issue = project.issues.get(issue.iid)
+            for comment in project_issue.notes.list(all=True):
+                all_text_to_parse.append(comment.body)
+        except gitlab.exceptions.GitlabHttpError as e:
+            print(f"[WARN] Could not retrieve notes for issue {issue.iid}: {e}")
+        except Exception as e:
+            print(f"[WARN] An unexpected error occurred while retrieving notes for issue {issue.iid}: {e}")
+
         for text in all_text_to_parse:
             found_relationships = parse_relationships(issue.iid, text)
             for rel in found_relationships:
@@ -219,9 +295,6 @@ def build_project_map() -> dict:
                 if link_tuple not in unique_links_set:
                     unique_links_set.add(link_tuple)
                     links_data.append(rel)
-
-    # Future enhancement: Prune local files that are no longer on GitLab
-    # For now, we just update/create.
 
     project_map_data = {"doctrine": {"gemini_md_path": "/docs/spec/GEMINI.md", "gemini_md_commit_hash": "TODO"}, "nodes": nodes_data, "links": links_data}
     return {"status": "success", "map_data": project_map_data, "issues_found": len(nodes_data)}

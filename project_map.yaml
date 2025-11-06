@@ -1,0 +1,53 @@
+doctrine:
+  gemini_md_path: /docs/spec/GEMINI.md
+  gemini_md_commit_hash: TODO
+nodes:
+- id: 4
+  title: Partner group setting
+  type: Issue
+  state: opened
+  web_url: https://gitlab.hobbes.hu/hmedia/gitlab-ai-assistant/-/issues/4
+  labels:
+  - Backbone::Pricelist
+  - Type::Epic
+  local_path: backbones/pricelist/partner-group-setting/epic.md
+- id: 1
+  title: User registration
+  type: Issue
+  state: opened
+  web_url: https://gitlab.hobbes.hu/hmedia/gitlab-ai-assistant/-/issues/1
+  labels:
+  - Backbone::User Access
+  - Type::Epic
+  local_path: backbones/user-access/user-registration/epic.md
+- id: 24
+  title: Partner group price setting and clearing
+  type: Issue
+  state: opened
+  web_url: https://gitlab.hobbes.hu/hmedia/gitlab-ai-assistant/-/issues/24
+  labels:
+  - Backbone::Pricelist
+  - Type::Story
+  local_path: backbones/pricelist/partner-group-setting/story-partner-group-price-setting-and-clearing.md
+- id: 2
+  title: Register new user
+  type: Issue
+  state: opened
+  web_url: https://gitlab.hobbes.hu/hmedia/gitlab-ai-assistant/-/issues/2
+  labels:
+  - Backbone::User Access
+  - Type::Story
+  local_path: backbones/user-access/user-registration/story-register-new-user.md
+links:
+- source: 4
+  target: 24
+  type: contains
+- source: 1
+  target: 2
+  type: contains
+- source: 2
+  target: 4
+  type: blocks
+- source: 2
+  target: 1
+  type: blocks
