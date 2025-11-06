@@ -66,6 +66,8 @@ def get_issue_filepath(title: str, labels: list[str]) -> str | None:
     filename = f"{_slugify(title)}.md"
     if is_epic:
         filename = "epic.md"
+    elif is_story:
+        filename = f"story-{_slugify(title)}.md"
 
     backbone_label = next((label for label in labels if label.startswith("Backbone::")), None)
     

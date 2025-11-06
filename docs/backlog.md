@@ -48,7 +48,7 @@ This feature enables a user to provide a high-level idea and have the AI assista
 *   **AI Integration (Pre-filtering):** Implement the first phase of AI analysis within the `create feature` command to identify relevant context files.
 *   **AI Integration (Deep Analysis):** Implement the second phase to generate a structured plan based on the filtered context.
 *   **Structured Dialogue:** Create the interactive user confirmation workflow.
-*   **Local Generation & GitLab Upload:** Implement the final steps to create artifacts locally and upload them to GitLab.
+*   **Implement AI-generált Issue-k Feltöltése a GitLab-re (Implementáció és Tesztelés):** Implementáld az AI által generált és felhasználó által jóváhagyott issue-k (beleértve a címkéket és az issue linkeket a hierarchia számára) feltöltését a GitLab-re. Ez magában foglalja a `gitlab_service.upload_artifacts_to_gitlab` függvény meghívását a generált `project_map` adatokkal, és írj hozzá automatizált teszteket.
 
 ## Implement Robust GitLab Upload Functionality
 
