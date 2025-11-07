@@ -266,5 +266,43 @@ def sync_map():
 
     console.print(f"[green]✓ Project map successfully built with {result['issues_found']} issues and saved to {PROJECT_MAP_PATH}.[/green]")
 
+
+upload_app = typer.Typer()
+app.add_typer(upload_app, name="upload", help="Upload artifacts to GitLab.")
+
+@upload_app.command("story-map")
+def upload_story_map():
+    """
+    Uploads the locally generated story map (from project_map.yaml) to GitLab.
+    """
+    console = Console()
+    console.print("[bold]Initiating upload of story map to GitLab...[/bold]")
+
+    if not os.path.exists(PROJECT_MAP_PATH):
+        console.print(f"[bold red]Error:[/bold red] {PROJECT_MAP_PATH} not found. Please generate a story map first using 'gemini-cli create-feature'.")
+        raise typer.Exit(1)
+
+    try:
+        with open(PROJECT_MAP_PATH, 'r') as f:
+            project_map = yaml.safe_load(f)
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] Failed to read {PROJECT_MAP_PATH}: {e}")
+        raise typer.Exit(1)
+
+    with console.status("[bold green]Uploading artifacts to GitLab...[/bold green]"):
+        upload_result = gitlab_service.upload_artifacts_to_gitlab(project_map)
+
+    if upload_result["status"] == "success":
+        console.print("[green]✓ Story map successfully uploaded to GitLab![/green]")
+        console.print(f"  Labels created: {upload_result['labels_created']}")
+        console.print(f"  Issues created: {upload_result['issues_created']}")
+        console.print(f"  Notes with links created: {upload_result['notes_with_links_created']}")
+        console.print(f"  Issue links created: {upload_result['issue_links_created']}")
+    else:
+        console.print(f"[bold red]Error uploading story map:[/bold red] {upload_result['message']}")
+        raise typer.Exit(1)
+
+    console.print("\n[bold]Upload workflow finished.[/bold]")
+
 if __name__ == "__main__":
     app()

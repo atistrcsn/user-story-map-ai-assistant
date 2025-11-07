@@ -407,3 +407,33 @@ class TestUploadArtifactsToGitlab:
             'target_project_id': mock_gitlab_project_for_upload.id,
             'target_issue_iid': mock_story.iid
         })
+
+    def test_upload_artifacts_rollback_on_issue_failure(self, mock_gitlab_project_for_upload):
+        # Arrange
+        project_map = {
+            "nodes": [
+                {"id": "NEW_1", "title": "Implement New Feature", "labels": ["Type::Story", "NewLabel"], "description": "This is a new feature."}
+            ],
+            "links": []
+        }
+
+        # Simulate issue creation failure
+        mock_gitlab_project_for_upload.issues.create.side_effect = Exception("Simulated issue creation failure")
+
+        # Act
+        result = upload_artifacts_to_gitlab(project_map)
+
+        # Assert
+        assert result["status"] == "error"
+        assert "Simulated issue creation failure" in result["message"]
+        
+        # Verify label creation attempt
+        expected_label_create_calls = [call({'name': 'NewLabel', 'color': '#F0AD4E'})]
+        mock_gitlab_project_for_upload.labels.create.assert_has_calls(expected_label_create_calls, any_order=True)
+
+        # Verify label deletion (rollback)
+        expected_label_delete_calls = [call('NewLabel')]
+        mock_gitlab_project_for_upload.labels.delete.assert_has_calls(expected_label_delete_calls, any_order=True)
+        
+        # Verify issue creation attempt
+        mock_gitlab_project_for_upload.issues.create.assert_called_once()

@@ -4,6 +4,7 @@ import gitlab
 import json
 import yaml
 import shutil
+import time
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -303,7 +304,10 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
     """
     Uploads new artifacts (labels, issues, links) from a project map to GitLab.
     This now includes creating 'relates_to' issue links for Epic-Story hierarchy.
+    Includes transactional rollback for created labels and issues in case of failure.
     """
+    gl = None
+    project = None
     try:
         gl = get_gitlab_client()
         project_id = os.getenv("GITLAB_PROJECT_ID")
@@ -317,9 +321,14 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
     issues_created_count = 0
     notes_with_links_count = 0
     issue_links_created_count = 0
-    
-    # --- 1. Handle Labels ---
+
+    created_label_names = [] # To track labels for rollback
+    created_issue_iids = []  # To track issue IIDs for rollback
+
+    new_issue_id_map = {} # Maps temporary ID (e.g., "NEW_1") to actual GitLab IID
+
     try:
+        # --- 1. Handle Labels ---
         existing_labels = [label.name for label in project.labels.list(all=True)]
         all_new_labels = set()
         for node in project_map.get("nodes", []):
@@ -331,13 +340,11 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
         
         for label_name in labels_to_create:
             project.labels.create({'name': label_name, 'color': '#F0AD4E'})
+            created_label_names.append(label_name) # Track for rollback
             labels_created_count += 1
-    except gitlab.exceptions.GitlabError as e:
-        return {"status": "error", "message": f"Failed to create labels: {e}"}
+            time.sleep(0.1) # Throttling
 
-    # --- 2. Create Issues ---
-    new_issue_id_map = {} # Maps temporary ID (e.g., "NEW_1") to actual GitLab IID
-    try:
+        # --- 2. Create Issues ---
         nodes_to_create = [node for node in project_map.get("nodes", []) if str(node.get("id", "")).startswith("NEW_")]
         for node in nodes_to_create:
             issue_data = {
@@ -347,12 +354,11 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
             }
             new_issue = project.issues.create(issue_data)
             new_issue_id_map[node["id"]] = new_issue.iid
+            created_issue_iids.append(new_issue.iid) # Track for rollback
             issues_created_count += 1
-    except gitlab.exceptions.GitlabError as e:
-        return {"status": "error", "message": f"Failed to create issues: {e}"}
+            time.sleep(0.1) # Throttling
 
-    # --- 3. Create Links (as Notes for /blocking etc.) ---
-    try:
+        # --- 3. Create Links (as Notes for /blocking etc.) ---
         blocking_links = [link for link in project_map.get("links", []) if link.get("type") == "blocks"]
         for link in blocking_links:
             source_id_str = str(link.get("source"))
@@ -367,11 +373,9 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
                 note_body = f"/blocked by #{source_new_iid}"
                 target_issue.notes.create({'body': note_body})
                 notes_with_links_count += 1
-    except gitlab.exceptions.GitlabError as e:
-        return {"status": "error", "message": f"Failed to create links in notes: {e}"}
+                time.sleep(0.1) # Throttling
 
-    # --- 4. Create Issue Links (for Epic-Story hierarchy) ---
-    try:
+        # --- 4. Create Issue Links (for Epic-Story hierarchy) ---
         contains_links = [link for link in project_map.get("links", []) if link.get("type") == "contains"]
         for link in contains_links:
             source_id = link.get("source")
@@ -390,9 +394,42 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
             source_issue.links.create({'target_project_id': project.id, 'target_issue_iid': target_iid})
             issue_links_created_count += 1
             print(f"[INFO] Created 'relates_to' link from Epic #{source_iid} to Story #{target_iid}")
+            time.sleep(0.1) # Throttling
 
     except gitlab.exceptions.GitlabError as e:
-        return {"status": "error", "message": f"Failed to create issue links: {e}"}
+        # --- Rollback Logic ---
+        print(f"[ERROR] GitLab API error during upload: {e}")
+        if project:
+            for iid in reversed(created_issue_iids): # Delete issues in reverse order of creation
+                try:
+                    project.issues.delete(iid)
+                    print(f"[INFO] Rolled back issue #{iid}")
+                except gitlab.exceptions.GitlabError as rollback_e:
+                    print(f"[ERROR] Failed to rollback issue #{iid}: {rollback_e}")
+            for label_name in reversed(created_label_names): # Delete labels in reverse order of creation
+                try:
+                    project.labels.delete(label_name)
+                    print(f"[INFO] Rolled back label '{label_name}'")
+                except gitlab.exceptions.GitlabError as rollback_e:
+                    print(f"[ERROR] Failed to rollback label '{label_name}': {rollback_e}")
+        return {"status": "error", "message": f"Failed to upload artifacts to GitLab: {e}"}
+    except Exception as e:
+        print(f"[ERROR] An unexpected error occurred during upload: {e}")
+        # Attempt rollback for issues and labels if project object is available
+        if project:
+            for iid in reversed(created_issue_iids):
+                try:
+                    project.issues.delete(iid)
+                    print(f"[INFO] Rolled back issue #{iid}")
+                except gitlab.exceptions.GitlabError as rollback_e:
+                    print(f"[ERROR] Failed to rollback issue #{iid}: {rollback_e}")
+            for label_name in reversed(created_label_names):
+                try:
+                    project.labels.delete(label_name)
+                    print(f"[INFO] Rolled back label '{label_name}'")
+                except gitlab.exceptions.GitlabError as rollback_e:
+                    print(f"[ERROR] Failed to rollback label '{label_name}': {rollback_e}")
+        return {"status": "error", "message": f"An unexpected error occurred during upload: {e}"}
 
     return {
         "status": "success",

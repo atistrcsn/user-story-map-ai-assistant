@@ -38,7 +38,7 @@ The process is interactive, with the AI performing analysis and proposing soluti
 *   **Importance:** Provides a local, reviewable representation of the planned changes before any modifications are pushed to the remote GitLab instance, acting as a crucial staging step.
 
 **6. Robust Upload to GitLab**
-*   **Státusz:** `[KÉSZ]` - **TDD implementáció befejezve**
+*   **Státusz:** `[KÉSZ]`
 *   **Understanding:** This is the final, critical phase where local changes are propagated to the remote GitLab server. This process is designed for reliability and data integrity.
     *   **Ordered Execution:** Changes are applied in a strict sequence: 1) Create any new labels required by the new issues. 2) Create the new issues themselves, capturing their GitLab IIDs. 3) Add dependency comments (`/blocks #<IID>` or `/blocked_by #<IID>`) to the relevant issues, using the newly obtained IIDs.
     *   **API Throttling:** Small, controlled delays are introduced between API calls to prevent hitting GitLab's rate limits and ensure smooth operation.

@@ -42,17 +42,17 @@ This feature enables a user to provide a high-level idea and have the AI assista
     *   `build_project_map`: Függőségi gráfot és projekt térképet épít az issue-kból.
     *   Tiszta, tesztelhető logika, leválasztva a CLI rétegről.
 *   **Comprehensive Test Coverage:** Unit tesztek a CLI és a service rétegre is (`test_gemini_cli.py`, `test_gitlab_service.py`).
+*   **Implement AI-generált Issue-k Feltöltése a GitLab-re (Implementáció és Tesztelés):** Az AI által generált és felhasználó által jóváhagyott issue-k (beleértve a címkéket és az issue linkeket a hierarchia számára) feltöltése a GitLab-re, beleértve a `gitlab_service.upload_artifacts_to_gitlab` függvény meghívását a generált `project_map` adatokkal, és automatizált tesztekkel.
 
 ### Next Steps (Planned):
 
 *   **AI Integration (Pre-filtering):** Implement the first phase of AI analysis within the `create feature` command to identify relevant context files.
 *   **AI Integration (Deep Analysis):** Implement the second phase to generate a structured plan based on the filtered context.
 *   **Structured Dialogue:** Create the interactive user confirmation workflow.
-*   **Implement AI-generált Issue-k Feltöltése a GitLab-re (Implementáció és Tesztelés):** Implementáld az AI által generált és felhasználó által jóváhagyott issue-k (beleértve a címkéket és az issue linkeket a hierarchia számára) feltöltését a GitLab-re. Ez magában foglalja a `gitlab_service.upload_artifacts_to_gitlab` függvény meghívását a generált `project_map` adatokkal, és írj hozzá automatizált teszteket.
 
 ## Implement Robust GitLab Upload Functionality
 
-**Status:** PENDING
+**Status:** [KÉSZ]
 
 **Description:** Refactor and properly implement the `upload_artifacts_to_gitlab` function in `gitlab_service.py` using a test-driven approach to ensure correctness and reliability.
 
