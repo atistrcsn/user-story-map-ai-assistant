@@ -233,14 +233,7 @@ def mock_issue_story_linked(mock_issue_epic_linked):
 
 class TestBuildProjectMap:
 
-    @pytest.fixture
-    def mock_data_dir(self, mocker, tmp_path):
-        """Fixture to patch DATA_DIR to use a temporary directory."""
-        data_dir_path = tmp_path / "gitlab_data"
-        mocker.patch('gitlab_service.DATA_DIR', str(data_dir_path))
-        return data_dir_path
-
-    def test_build_map_creates_files_and_nodes(self, mock_gitlab_project, mock_data_dir):
+    def test_build_map_creates_files_and_nodes(self, mock_gitlab_project, tmp_path):
         # Act
         result = build_project_map()
 
@@ -251,11 +244,13 @@ class TestBuildProjectMap:
         assert len(map_data["nodes"]) == 5
         
         # Check that all non-task issues have a file
-        assert (mock_data_dir / "backbones" / "user-authentication" / "user-authentication-workflow.md").exists()
-        assert not (mock_data_dir / "_unassigned" / "create-database-migration-for-users-table.md").exists() # Task should not have a file
-        assert (mock_data_dir / "_unassigned" / "random-bug-fix.md").exists()
+        # Note: We check against tmp_path now, which is automatically provided by pytest
+        data_dir = tmp_path / "gitlab_data"
+        assert (data_dir / "backbones" / "user-authentication" / "user-authentication-workflow.md").exists()
+        assert not (data_dir / "_unassigned" / "create-database-migration-for-users-table.md").exists() # Task should not have a file
+        assert (data_dir / "_unassigned" / "random-bug-fix.md").exists()
 
-    def test_build_map_parses_relationships(self, mock_gitlab_project, mock_data_dir, mock_issue_story, mock_issue_story_with_tasks):
+    def test_build_map_parses_relationships(self, mock_gitlab_project, mock_issue_story, mock_issue_story_with_tasks):
         # Arrange
         mock_issue_story.description = "Story description. /blocked by #101"
         mock_issue_story_with_tasks.description = "Story with tasks. /blocking #100"
@@ -273,7 +268,7 @@ class TestBuildProjectMap:
         assert link1 in map_data["links"]
         assert link2 in map_data["links"]
 
-    def test_build_map_creates_hierarchy_from_issue_links(self, mocker, mock_data_dir, mock_issue_epic_linked, mock_issue_story_linked):
+    def test_build_map_creates_hierarchy_from_issue_links(self, mocker, tmp_path, mock_issue_epic_linked, mock_issue_story_linked):
         # Arrange
         mock_project = MagicMock()
         mock_project.issues.list.return_value = [mock_issue_epic_linked, mock_issue_story_linked]
@@ -299,13 +294,14 @@ class TestBuildProjectMap:
         map_data = result["map_data"]
         
         # 1. Check if the story file is in the epic's directory
+        data_dir = tmp_path / "gitlab_data"
         epic_dir_name = "new-epic-for-linking"
         story_file_name = "story-story-linked-to-epic.md"
         expected_story_path = os.path.join("backbones", "test-backbone", epic_dir_name, story_file_name)
         
         story_node = next(node for node in map_data["nodes"] if node["id"] == mock_issue_story_linked.iid)
         assert story_node["local_path"] == expected_story_path
-        assert (mock_data_dir / expected_story_path).exists()
+        assert (data_dir / expected_story_path).exists()
 
         # 2. Check if the 'contains' link was created in the map
         expected_link = {"source": mock_issue_epic_linked.iid, "target": mock_issue_story_linked.iid, "type": "contains"}
@@ -437,3 +433,37 @@ class TestUploadArtifactsToGitlab:
         
         # Verify issue creation attempt
         mock_gitlab_project_for_upload.issues.create.assert_called_once()
+
+    def test_upload_artifacts_ignores_existing_contains_links(self, mock_gitlab_project_for_upload):
+        """
+        Tests that the upload logic correctly ignores 'contains' links that
+        already exist between non-NEW issues, preventing redundant API calls.
+        """
+        # Arrange
+        project_map = {
+            "nodes": [
+                # A new issue is needed to trigger the upload process
+                {"id": "NEW_1", "title": "A new story", "labels": ["Type::Story"], "description": "desc"}
+            ],
+            "links": [
+                # This link already exists and should be ignored
+                {"source": 101, "target": 102, "type": "contains"}
+            ]
+        }
+
+        # Mock the .get call that would be used for link creation
+        mock_existing_epic = MagicMock()
+        mock_gitlab_project_for_upload.issues.get.return_value = mock_existing_epic
+
+        # Act
+        result = upload_artifacts_to_gitlab(project_map)
+
+        # Assert
+        assert result["status"] == "success"
+        assert result["issue_links_created"] == 0 # No NEW links were in the map
+
+        # Verify that the new issue was created
+        mock_gitlab_project_for_upload.issues.create.assert_called_once()
+
+        # CRITICAL: Verify that no attempt was made to create a link for the existing relationship
+        mock_existing_epic.links.create.assert_not_called()

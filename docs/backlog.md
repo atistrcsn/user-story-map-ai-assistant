@@ -44,6 +44,8 @@ This feature enables a user to provide a high-level idea and have the AI assista
 *   **Comprehensive Test Coverage:** Unit tesztek a CLI és a service rétegre is (`test_gemini_cli.py`, `test_gitlab_service.py`).
 *   **Implement AI-generált Issue-k Feltöltése a GitLab-re (Implementáció és Tesztelés):** Az AI által generált és felhasználó által jóváhagyott issue-k (beleértve a címkéket és az issue linkeket a hierarchia számára) feltöltése a GitLab-re egy különálló `gemini-cli upload story-map` parancs segítségével történik, miután a `create-feature` parancs helyileg generálta a story map-et. Ez magában foglalja a `gitlab_service.upload_artifacts_to_gitlab` függvény meghívását a generált `project_map` adatokkal, és automatizált tesztekkel.
 
+*   **Függőségi láncok helyes kezelése:** Kijavítottam egy hibát, ahol a `create-feature` parancs által generált `project_map.yaml` nem tartalmazta a helyes `contains` típusú linkeket az újonnan létrehozott epicek és sztorik között. A rendszer most már korrektül felépíti a hierarchikus linkeket a `project_map.yaml`-ban, biztosítva a szülő-gyermek kapcsolatot az agilis elemek között.
+
 ### Next Steps (Planned):
 
 *   **AI Integration (Pre-filtering):** Implement the first phase of AI analysis within the `create feature` command to identify relevant context files.
@@ -171,3 +173,15 @@ This feature enables a user to provide a high-level idea and have the AI assista
     *   Perform a manual, end-to-end test by running the `create-feature` command to see a real AI-generated response.
 
 ## Future Features / Enhancements:
+
+---
+
+## Feladatok és Incidensek
+
+*   **INC-001: `project_map.yaml` hiányzó `description` mező javítása**
+    *   **Státusz:** [KÉSZ]
+    *   **Leírás:** A `gemini_cli.py` `_generate_local_files` függvénye nem adta hozzá a `description` mezőt a `project_map.yaml`-ban létrehozott új issue node-okhoz. Ez üres leírások feltöltését okozta. A hiba javítva lett, a mező most már helyesen bekerül a project map-be.
+
+*   **INC-002: A feltöltési logika hibásan próbált létező linkeket újra létrehozni**
+    *   **Státusz:** [KÉSZ]
+    *   **Leírás:** A `gitlab_service.py` `upload_artifacts_to_gitlab` függvénye a `project_map.yaml`-ban lévő összes `contains` típusú linket megpróbálta létrehozni, beleértve a már létezőket is. Ez `409 Conflict` API hibát okozott. A logika javítva lett, hogy a feltöltés már csak az újonnan generált issue-khoz tartozó linkeket hozza létre.

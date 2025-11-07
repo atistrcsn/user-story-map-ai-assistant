@@ -70,7 +70,7 @@ def _generate_local_files(plan: dict, console: Console):
     """
     Generates local .md files and updates project_map.yaml based on the AI plan.
     This function uses a two-pass approach to correctly place new stories
-    under their corresponding new epics before IIDs are available.
+    under their corresponding new epics and create the 'contains' link.
     """
     console.print("\n[bold green]Plan approved. Generating local files...[/bold green]")
     
@@ -88,21 +88,21 @@ def _generate_local_files(plan: dict, console: Console):
         console.print("[yellow]Warning: No new issues proposed in the plan.[/yellow]")
         return
 
-    # --- Pass 1: Map out new epics and their intended paths ---
-    new_epic_paths = {} # Maps 'Epic::<name>' label to its directory path
+    # --- Pass 1: Map out new epics: their paths and temporary IDs ---
+    new_epic_map = {} # Maps 'Epic::<name>' label to a dict with {'path': ..., 'id': ...}
     for issue in proposed_issues:
         labels = issue.get("labels", [])
         if "Type::Epic" in labels:
-            # Determine the epic's directory path
             epic_dir_path_str = gitlab_service.get_issue_filepath(issue.get("title"), labels)
             if epic_dir_path_str:
-                # Find the temporary epic label (e.g., 'Epic::User Profile Management')
                 temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
                 if temp_epic_label:
-                    # Store the directory part of the path
-                    new_epic_paths[temp_epic_label] = os.path.dirname(epic_dir_path_str)
+                    new_epic_map[temp_epic_label] = {
+                        "path": os.path.dirname(epic_dir_path_str),
+                        "id": issue["id"]
+                    }
 
-    # --- Pass 2: Generate all files, placing stories correctly ---
+    # --- Pass 2: Generate all files, creating 'contains' links for stories ---
     for issue in proposed_issues:
         title = issue["title"]
         if title in existing_titles:
@@ -114,15 +114,24 @@ def _generate_local_files(plan: dict, console: Console):
         labels = issue.get("labels", [])
         relative_filepath = None
 
-        # If it's a story, try to find its parent epic's path from our map
+        # If it's a story, try to find its parent epic's path and ID from our map
         if "Type::Story" in labels:
             temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
-            if temp_epic_label and temp_epic_label in new_epic_paths:
-                story_filename = f"story-{_slugify(title)}.md"
-                relative_filepath = os.path.join(new_epic_paths[temp_epic_label], story_filename)
-                console.print(f"[DIAG] Story '{title}' mapped to new Epic path: {relative_filepath}")
+            if temp_epic_label and temp_epic_label in new_epic_map:
+                parent_epic_info = new_epic_map[temp_epic_label]
+                parent_epic_path = parent_epic_info["path"]
+                parent_epic_id = parent_epic_info["id"]
 
-        # If path wasn't determined above (e.g., it's an epic or a story for an existing epic), use the default logic
+                story_filename = f"story-{_slugify(title)}.md"
+                relative_filepath = os.path.join(parent_epic_path, story_filename)
+                console.print(f"[DIAG] Story '{title}' mapped to new Epic path: {relative_filepath}")
+                
+                # CRITICAL FIX: Create the 'contains' link
+                new_links.append({"source": parent_epic_id, "target": temp_id, "type": "contains"})
+                console.print(f"[DIAG] Created 'contains' link from Epic '{parent_epic_id}' to Story '{temp_id}'")
+
+
+        # If path wasn't determined above, use the default logic
         if not relative_filepath:
             relative_filepath = gitlab_service.get_issue_filepath(title, labels)
         
@@ -137,7 +146,7 @@ def _generate_local_files(plan: dict, console: Console):
         with open(full_filepath, 'w', encoding='utf-8') as f: f.write(markdown_content)
         console.print(f"  - Created file: {full_filepath}")
 
-        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": relative_filepath}
+        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": relative_filepath, "description": issue.get('description', '')}
         new_nodes.append(new_node)
         
         # Handle dependencies (unchanged)
@@ -199,7 +208,9 @@ def create_feature(
     with console.status("[bold green]Sending to AI for pre-filtering analysis...[/bold green]"):
         relevant_files = ai_service.get_relevant_context_files(feature_description, all_sources, mock_ai)
     if relevant_files:
-        console.print(f"[green]✓ AI identified {len(relevant_files)} relevant files.[/green]")
+        console.print(f"[green]✓ AI identified {len(relevant_files)} relevant files:[/green]")
+        for file_path in relevant_files:
+            console.print(f"  - {file_path}")
     else:
         console.print("[yellow]Warning: AI could not identify relevant context files.[/yellow]")
 
@@ -234,7 +245,8 @@ def create_feature(
                     for node in project_map["nodes"]:
                         existing_issues_context.append({
                             "title": node.get("title"),
-                            "labels": node.get("labels", [])
+                            "labels": node.get("labels", []),
+                            "state": node.get("state")
                         })
 
         plan = ai_service.generate_implementation_plan(

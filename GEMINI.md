@@ -108,3 +108,11 @@ You are **FORBIDDEN** from starting implementation until you have completed and 
 6.  **Confirm and Commit:** State that you have successfully loaded the full context (the primary plan and its supporting documents). Confirm that all subsequent implementation steps will be guided by this **complete, holistic context**.
 
 7.  **Track and Update Progress:** After successfully implementing a significant part of the plan, you MUST update the Primary Plan document to reflect the new status (e.g., by adding `[DONE]` or `Status: Implemented` markers to the relevant sections). This ensures the plan document is a living artifact that tracks real-world progress.
+
+## Known Issues and Best Practices
+
+### f-string Syntax in Prompts
+
+*   **Issue:** A `ValueError: Invalid format specifier` can occur in Python scripts (like `ai_service.py`) when generating prompts using f-strings.
+*   **Cause:** This error happens if the prompt template contains literal curly braces (`{` or `}`) that are intended for the final text (e.g., in a JSON example). The Python f-string parser incorrectly interprets these single braces as placeholders for variables.
+*   **Solution:** All literal curly braces within an f-string **must** be escaped by doubling them. For example, a JSON example like `{"key": "value"}` must be written as `{{"key": "value"}}` inside an f-string. This is a mandatory best practice for prompt engineering within this project's Python code.

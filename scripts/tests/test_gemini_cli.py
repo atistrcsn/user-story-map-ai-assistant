@@ -110,3 +110,86 @@ class TestCreateFeature:
         # Assert
         assert result.exit_code == 1
         mock_gitlab_client.assert_called_once()
+
+
+class TestGenerateLocalFiles:
+
+    @pytest.fixture
+    def mock_ai_plan_for_linking(self):
+        """Provides a mock AI plan with a new epic, a story for it, and a dependent story."""
+        return {
+            "proposed_issues": [
+                {
+                    "id": "NEW_EPIC_1",
+                    "title": "My New Test Epic",
+                    "labels": ["Type::Epic", "Epic::My New Test Epic", "Backbone::Test"],
+                    "description": "This is a new test epic."
+                },
+                {
+                    "id": "NEW_STORY_1",
+                    "title": "First Story for Epic",
+                    "labels": ["Type::Story", "Epic::My New Test Epic", "Backbone::Test"],
+                    "description": "This story belongs to the new epic."
+                },
+                {
+                    "id": "NEW_STORY_2",
+                    "title": "Second Story, blocked by first",
+                    "labels": ["Type::Story", "Epic::My New Test Epic", "Backbone::Test"],
+                    "description": "This story is blocked by the first one.",
+                    "dependencies": {
+                        "is_blocked_by": ["NEW_STORY_1"]
+                    }
+                }
+            ]
+        }
+
+    def test_generate_local_files_creates_links_and_descriptions(self, mock_ai_plan_for_linking, mocker, tmp_path):
+        """
+        Tests that _generate_local_files correctly creates 'contains' and 'blocks' 
+        links, and also correctly populates the 'description' field for new nodes
+        in the project_map.yaml.
+        """
+        # Arrange
+        from gemini_cli import _generate_local_files, PROJECT_MAP_PATH
+        from rich.console import Console
+        import yaml
+
+        console = Console()
+
+        # Mock the initial project_map.yaml to be empty
+        with open(PROJECT_MAP_PATH, 'w') as f:
+            yaml.dump({"nodes": [], "links": []}, f)
+
+        # Act
+        _generate_local_files(mock_ai_plan_for_linking, console)
+
+        # Assert
+        assert os.path.exists(PROJECT_MAP_PATH)
+        with open(PROJECT_MAP_PATH, 'r') as f:
+            project_map = yaml.safe_load(f)
+
+        # --- Assertions for Links ---
+        links = project_map.get("links", [])
+        assert len(links) == 3
+        expected_contains_link_1 = {'source': 'NEW_EPIC_1', 'target': 'NEW_STORY_1', 'type': 'contains'}
+        expected_contains_link_2 = {'source': 'NEW_EPIC_1', 'target': 'NEW_STORY_2', 'type': 'contains'}
+        expected_blocks_link = {'source': 'NEW_STORY_1', 'target': 'NEW_STORY_2', 'type': 'blocks'}
+        assert expected_contains_link_1 in links
+        assert expected_contains_link_2 in links
+        assert expected_blocks_link in links
+
+        # --- Assertions for Node Descriptions ---
+        nodes = project_map.get("nodes", [])
+        assert len(nodes) == 3
+        
+        # Create a map of nodes by their ID for easy lookup
+        nodes_by_id = {node['id']: node for node in nodes}
+        
+        # Verify each new node has the correct description from the plan
+        for issue_from_plan in mock_ai_plan_for_linking['proposed_issues']:
+            temp_id = issue_from_plan['id']
+            assert temp_id in nodes_by_id
+            
+            node_in_map = nodes_by_id[temp_id]
+            assert 'description' in node_in_map
+            assert node_in_map['description'] == issue_from_plan['description']

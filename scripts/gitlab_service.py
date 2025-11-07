@@ -334,14 +334,17 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
         for node in project_map.get("nodes", []):
             if str(node.get("id", "")).startswith("NEW_"):
                 for label in node.get("labels", []):
-                    all_new_labels.add(label)
+                    if not label.startswith("Epic::"): # Filter out temporary Epic:: labels
+                        all_new_labels.add(label)
         
         labels_to_create = [label for label in all_new_labels if label not in existing_labels]
         
         for label_name in labels_to_create:
+            print(f"[DEBUG] Attempting to create label: '{label_name}'")
             project.labels.create({'name': label_name, 'color': '#F0AD4E'})
             created_label_names.append(label_name) # Track for rollback
             labels_created_count += 1
+            print(f"[INFO] Successfully created label: '{label_name}'")
             time.sleep(0.1) # Throttling
 
         # --- 2. Create Issues ---
@@ -350,12 +353,21 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
             issue_data = {
                 'title': node.get("title"),
                 'description': node.get("description", ""),
-                'labels': node.get("labels", [])
+                'labels': [label for label in node.get("labels", []) if not label.startswith("Epic::")] # Filter out temporary Epic:: labels
             }
+            # Log if any labels were filtered out for diagnostic purposes
+            original_labels = set(node.get("labels", []))
+            filtered_labels = set(issue_data['labels'])
+            if original_labels != filtered_labels:
+                removed_labels = original_labels - filtered_labels
+                print(f"[DIAG] Filtered out temporary labels for issue '{node.get("title")}': {', '.join(removed_labels)}")
+            
+            print(f"[DEBUG] Attempting to create issue with data:\n{json.dumps(issue_data, indent=2)}")
             new_issue = project.issues.create(issue_data)
             new_issue_id_map[node["id"]] = new_issue.iid
             created_issue_iids.append(new_issue.iid) # Track for rollback
             issues_created_count += 1
+            print(f"[INFO] Successfully created issue #{new_issue.iid} for temp ID {node['id']}")
             time.sleep(0.1) # Throttling
 
         # --- 3. Create Links (as Notes for /blocking etc.) ---
@@ -371,12 +383,18 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
 
                 target_issue = project.issues.get(target_id)
                 note_body = f"/blocked by #{source_new_iid}"
+                print(f"[DEBUG] Attempting to create note on issue #{target_id} with content: '{note_body}'")
                 target_issue.notes.create({'body': note_body})
                 notes_with_links_count += 1
+                print(f"[INFO] Successfully created blocking note on issue #{target_id}")
                 time.sleep(0.1) # Throttling
 
         # --- 4. Create Issue Links (for Epic-Story hierarchy) ---
-        contains_links = [link for link in project_map.get("links", []) if link.get("type") == "contains"]
+        contains_links = [
+            link for link in project_map.get("links", []) 
+            if link.get("type") == "contains" and \
+               (str(link.get("source")).startswith("NEW_") or str(link.get("target")).startswith("NEW_"))
+        ]
         for link in contains_links:
             source_id = link.get("source")
             target_id = link.get("target")
@@ -390,14 +408,18 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
                 continue
 
             # Get the source issue object and create the link to the target
+            print(f"[DEBUG] Attempting to create 'relates_to' link from Epic #{source_iid} to Story #{target_iid}")
             source_issue = project.issues.get(source_iid)
             source_issue.links.create({'target_project_id': project.id, 'target_issue_iid': target_iid})
             issue_links_created_count += 1
-            print(f"[INFO] Created 'relates_to' link from Epic #{source_iid} to Story #{target_iid}")
+            print(f"[INFO] Successfully created 'relates_to' link from Epic #{source_iid} to Story #{target_iid}")
             time.sleep(0.1) # Throttling
 
     except gitlab.exceptions.GitlabError as e:
         # --- Rollback Logic ---
+        # Add context to the error message
+        failing_issue_title = node.get("title", "Unknown") if 'node' in locals() else "Unknown"
+        print(f"[FATAL] GitLab API error occurred while processing issue: '{failing_issue_title}'")
         print(f"[ERROR] GitLab API error during upload: {e}")
         if project:
             for iid in reversed(created_issue_iids): # Delete issues in reverse order of creation
@@ -414,6 +436,8 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
                     print(f"[ERROR] Failed to rollback label '{label_name}': {rollback_e}")
         return {"status": "error", "message": f"Failed to upload artifacts to GitLab: {e}"}
     except Exception as e:
+        failing_issue_title = node.get("title", "Unknown") if 'node' in locals() else "Unknown"
+        print(f"[FATAL] An unexpected error occurred while processing issue: '{failing_issue_title}'")
         print(f"[ERROR] An unexpected error occurred during upload: {e}")
         # Attempt rollback for issues and labels if project object is available
         if project:

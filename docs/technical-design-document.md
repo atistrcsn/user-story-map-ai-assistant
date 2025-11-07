@@ -134,12 +134,12 @@ Az AI által javasolt új funkciók gyakran tartalmaznak egyszerre új Epiceket 
     *   **Fontos:** Ez a címke egy belső "ragasztó", ami **soha nem kerül létrehozásra** a GitLab-en. Kizárólag a helyi fájlgenerálási logika használja.
 
 *   **Kétfázisú Helyi Generálás:** A `gemini-cli create-feature` parancs a `_generate_local_files` függvényen keresztül egy kétlépcsős folyamatot hajt végre:
-    1.  **Epicek Feltérképezése:** Először feldolgozza az összes `Type::Epic` címkével rendelkező új issue-t, létrehozza a könyvtáraikat, és egy belső térképen összerendeli az ideiglenes `Epic::<name>` címkét a frissen létrehozott könyvtár elérési útjával.
-    2.  **Story-k Elhelyezése:** Ezután feldolgozza a `Type::Story` issue-kat. A bennük található `Epic::<name>` címke alapján kikeresi a térképről a szülő Epic könyvtárát, és a Story fájlját a megfelelő helyre generálja.
+    1.  **Epicek Feltérképezése:** Először feldolgozza az összes `Type::Epic` címkével rendelkező új issue-t, létrehozza a könyvtáraikat, és egy belső térképen összerendeli az ideiglenes `Epic::<name>` címkét a frissen létrehozott könyvtár elérési útjával és ideiglenes ID-jével.
+    2.  **Story-k Elhelyezése és Linkek Létrehozása:** Ezután feldolgozza a `Type::Story` issue-kat. A bennük található `Epic::<name>` címke alapján kikeresi a térképről a szülő Epic könyvtárát és ideiglenes ID-jét, majd a Story fájlját a megfelelő helyre generálja. Ezzel egyidejűleg a `_generate_local_files` függvény **létrehozza a `contains` típusú linket**, valamint **hozzáadja a `description` mezőt is** a `project_map.yaml` fájlban a szülő Epic és a Story ideiglenes ID-i között, rögzítve a hierarchikus kapcsolatot és a tartalmat a helyi térképen is.
 
 *   **Konverzió Feltöltéskor:** A `gemini-cli upload story-map` parancs felelős a konverzióért:
     1.  Létrehozza az issue-kat a GitLab-en a megfelelő (`Type::Epic`, `Type::Story`) címkékkel, de az `Epic::<name>` címke nélkül.
-    2.  Az ideiglenes címke alapján azonosítja a szülő-gyermek kapcsolatot.
+    2.  A `project_map.yaml`-ban lévő `contains` linkek alapján azonosítja a szülő-gyermek kapcsolatot. A feltöltési logika intelligensen szűri ezeket a linkeket, és **csak azokat a kapcsolatokat hozza létre, amelyek újonnan generált (`NEW_`) issue-kat érintenek**, elkerülve a már létező linkek újra-létrehozásából fakadó API hibákat.
     3.  A frissen kapott IID-k segítségével létrehozza a hivatalos **"Related items"** kapcsolatot az Epic és a Story között a GitLab API-n keresztül.
 
 ## 6. Továbbgondolható Fejlesztési Irányok

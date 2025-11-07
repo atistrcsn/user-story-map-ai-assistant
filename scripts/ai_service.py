@@ -68,7 +68,7 @@ def generate_implementation_plan(user_prompt: str, context_content: str, existin
         pass
 
     existing_issues_str = "\n".join(
-        f"- Title: \"{issue['title']}\", Labels: {issue['labels']}" for issue in existing_issues
+        f"- Title: \"{issue['title']}\", Labels: {issue['labels']}, State: \"{issue.get('state', 'unknown')}\"" for issue in existing_issues
     ) if existing_issues else "N/A"
 
     prompt = f"""
@@ -113,7 +113,8 @@ Based on the "User Request", create a plan of user stories. Before you begin, ca
     - "description": The full Markdown text from the template above.
     - "labels": A list of GitLab labels (e.g., `Type::Story`, `Epic::...`, `Backbone::...`).
     - "dependencies": An optional object for functional dependencies.
-8.  **Define Dependencies:** After proposing all issues, analyze them. If implementing one issue is a logical prerequisite for another, you **MUST** define this relationship. For example, if NEW_2 must be done before NEW_3, add this to NEW_3: `"dependencies": {"is_blocked_by": ["NEW_2"]}`.
+8.  **Define Dependencies:** After proposing all issues, analyze them. If implementing one issue is a logical prerequisite for another, you **MUST** define this relationship. For example, if NEW_2 must be done before NEW_3, add this to NEW_3: `"dependencies": {{"is_blocked_by": ["NEW_2"]}}`.
+9.  **CRITICAL DEPENDENCY RULE:** You MUST NOT propose a dependency on any issue that has a state of 'closed'. Closed issues are completed and cannot block new work. Only issues with a state of 'opened' can be considered as blockers.
 
 **User Request:** "{user_prompt}"
 
