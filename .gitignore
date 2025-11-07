@@ -85,5 +85,4 @@ build/
 # Gemini CLI specific files
 /.gemini_context/
 /.gemini_cache/
-/.gemini_prompts/
 

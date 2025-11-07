@@ -89,10 +89,8 @@ A prompt higiénia kulcsfontosságú.
 
 A `/.gemini_prompts/` könyvtár bevezetése szabványosítja és skálázhatóvá teszi a rendszert.
 
-*   **Implementáció:** Létrehozzuk a `/.gemini_prompts/` könyvtárat, olyan sablonokkal, mint:
-    *   `planning.prompt`: A következő feladat stratégiai kiválasztásához.
-    *   `implementation_plan.prompt`: Egy adott story technikai tervének elkészítéséhez.
-    *   `code_review.prompt`: Merge requestek AI-alapú véleményezéséhez.
+*   **Implementáció:** Ahelyett, hogy a prompt sablonokat külső fájlokban tárolnánk (ami a `gemini-cli` környezetben hozzáférési problémákat okozott), a promptok közvetlenül az `ai_service.py` szkriptben, f-string formátumban kerülnek definiálásra. Ez a megközelítés biztosítja a megbízható működést és a könnyű karbantarthatóságot, mivel a prompt logikája és a Python kód egy helyen található. A jövőben, ha a rendszer komplexitása indokolja, ez a döntés újraértékelhető.
+
 
 ## 5. Biztonság és CI/CD Integráció
 
@@ -127,6 +125,22 @@ A korábbi, címke-alapú (`Epic::`) hierarchia-kezelést egy robusztusabb, a Gi
 *   **3. Menet (Pass 3): Szöveges Függőségek Feldolgozása:** Végül a szkript az összes issue leírását és kommentjét elemzi a szövegesen definiált (`/blocking`, `/blocked by`) kapcsolatok után kutatva, és ezeket is hozzáadja a `project_map.yaml`-ban definiált gráfhoz.
 
 Ez a többlépcsős megközelítés garantálja, hogy a sztorik mindig a megfelelő szülő epik alá kerüljenek a fájlrendszerben, pontosan leképezve a GitLab-ben definiált struktúrát.
+
+### e. Új Epicek és Story-k Kezelése a Generálás Során
+
+Az AI által javasolt új funkciók gyakran tartalmaznak egyszerre új Epiceket és a hozzájuk tartozó új Story-kat. Mivel ezek az entitások a helyi generálás pillanatában még nem rendelkeznek GitLab IID-vel, egy speciális mechanizmusra van szükség a hierarchia helyes felépítéséhez.
+
+*   **Ideiglenes `Epic::<name>` Címke:** Az AI a javaslatában egy ideiglenes, `Epic::My New Epic Name` formátumú címkét használ a Story-kon, hogy jelezze a szándékolt hovatartozást.
+    *   **Fontos:** Ez a címke egy belső "ragasztó", ami **soha nem kerül létrehozásra** a GitLab-en. Kizárólag a helyi fájlgenerálási logika használja.
+
+*   **Kétfázisú Helyi Generálás:** A `gemini-cli create-feature` parancs a `_generate_local_files` függvényen keresztül egy kétlépcsős folyamatot hajt végre:
+    1.  **Epicek Feltérképezése:** Először feldolgozza az összes `Type::Epic` címkével rendelkező új issue-t, létrehozza a könyvtáraikat, és egy belső térképen összerendeli az ideiglenes `Epic::<name>` címkét a frissen létrehozott könyvtár elérési útjával.
+    2.  **Story-k Elhelyezése:** Ezután feldolgozza a `Type::Story` issue-kat. A bennük található `Epic::<name>` címke alapján kikeresi a térképről a szülő Epic könyvtárát, és a Story fájlját a megfelelő helyre generálja.
+
+*   **Konverzió Feltöltéskor:** A `gemini-cli upload story-map` parancs felelős a konverzióért:
+    1.  Létrehozza az issue-kat a GitLab-en a megfelelő (`Type::Epic`, `Type::Story`) címkékkel, de az `Epic::<name>` címke nélkül.
+    2.  Az ideiglenes címke alapján azonosítja a szülő-gyermek kapcsolatot.
+    3.  A frissen kapott IID-k segítségével létrehozza a hivatalos **"Related items"** kapcsolatot az Epic és a Story között a GitLab API-n keresztül.
 
 ## 6. Továbbgondolható Fejlesztési Irányok
 

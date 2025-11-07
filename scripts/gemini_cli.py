@@ -68,8 +68,9 @@ def _slugify(text):
 
 def _generate_local_files(plan: dict, console: Console):
     """
-    Generates local .md files and updates the project_map.yaml based on the AI plan,
-    skipping any issues that already exist.
+    Generates local .md files and updates project_map.yaml based on the AI plan.
+    This function uses a two-pass approach to correctly place new stories
+    under their corresponding new epics before IIDs are available.
     """
     console.print("\n[bold green]Plan approved. Generating local files...[/bold green]")
     
@@ -81,8 +82,28 @@ def _generate_local_files(plan: dict, console: Console):
 
     existing_titles = {node['title'] for node in project_map.get("nodes", [])}
     new_nodes, new_links, skipped_count = [], [], 0
+    
+    proposed_issues = plan.get("proposed_issues", [])
+    if not proposed_issues:
+        console.print("[yellow]Warning: No new issues proposed in the plan.[/yellow]")
+        return
 
-    for issue in plan.get("proposed_issues", []):
+    # --- Pass 1: Map out new epics and their intended paths ---
+    new_epic_paths = {} # Maps 'Epic::<name>' label to its directory path
+    for issue in proposed_issues:
+        labels = issue.get("labels", [])
+        if "Type::Epic" in labels:
+            # Determine the epic's directory path
+            epic_dir_path_str = gitlab_service.get_issue_filepath(issue.get("title"), labels)
+            if epic_dir_path_str:
+                # Find the temporary epic label (e.g., 'Epic::User Profile Management')
+                temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
+                if temp_epic_label:
+                    # Store the directory part of the path
+                    new_epic_paths[temp_epic_label] = os.path.dirname(epic_dir_path_str)
+
+    # --- Pass 2: Generate all files, placing stories correctly ---
+    for issue in proposed_issues:
         title = issue["title"]
         if title in existing_titles:
             console.print(f"[yellow]Warning: Issue '{title}' already exists. Skipping.[/yellow]")
@@ -90,41 +111,47 @@ def _generate_local_files(plan: dict, console: Console):
             continue
 
         temp_id = issue["id"]
-        frontmatter = {"iid": temp_id, "title": title, "state": "opened", "labels": issue.get("labels", [])}
-        markdown_content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{issue.get('description', '')}\n"
-        
-        # Use the centralized function from gitlab_service
-        relative_filepath = gitlab_service.get_issue_filepath(issue.get("title"), issue.get("labels", []))
-        if not relative_filepath:
-            relative_filepath = os.path.join("_unassigned", f"{_slugify(issue.get('title'))}.md")
+        labels = issue.get("labels", [])
+        relative_filepath = None
 
+        # If it's a story, try to find its parent epic's path from our map
+        if "Type::Story" in labels:
+            temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
+            if temp_epic_label and temp_epic_label in new_epic_paths:
+                story_filename = f"story-{_slugify(title)}.md"
+                relative_filepath = os.path.join(new_epic_paths[temp_epic_label], story_filename)
+                console.print(f"[DIAG] Story '{title}' mapped to new Epic path: {relative_filepath}")
+
+        # If path wasn't determined above (e.g., it's an epic or a story for an existing epic), use the default logic
+        if not relative_filepath:
+            relative_filepath = gitlab_service.get_issue_filepath(title, labels)
+        
+        if not relative_filepath: # Fallback for unassigned items
+            relative_filepath = os.path.join("_unassigned", f"{_slugify(title)}.md")
+
+        # Create file and node
+        frontmatter = {"iid": temp_id, "title": title, "state": "opened", "labels": labels}
+        markdown_content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{issue.get('description', '')}\n"
         full_filepath = os.path.join(DATA_DIR, relative_filepath)
         os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f: f.write(markdown_content)
         console.print(f"  - Created file: {full_filepath}")
 
-        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": issue.get("labels", []), "local_path": relative_filepath}
+        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": relative_filepath}
         new_nodes.append(new_node)
         
+        # Handle dependencies (unchanged)
         dependencies = issue.get("dependencies", {})
-        # Ensure dependencies is a dict before checking for keys
         if dependencies and "blocks" in dependencies:
-            # Handle cases where 'blocks' might be a single item, not a list
             target_ids = dependencies["blocks"]
-            if not isinstance(target_ids, list):
-                target_ids = [target_ids]
-            for target_id in target_ids:
-                new_links.append({"source": temp_id, "target": target_id, "type": "blocks"})
-
+            if not isinstance(target_ids, list): target_ids = [target_ids]
+            for target_id in target_ids: new_links.append({"source": temp_id, "target": target_id, "type": "blocks"})
         if dependencies and "is_blocked_by" in dependencies:
-            # Handle cases where 'is_blocked_by' might be a single item, not a list
             blocker_ids = dependencies["is_blocked_by"]
-            if not isinstance(blocker_ids, list):
-                blocker_ids = [blocker_ids]
-            for blocker_id in blocker_ids:
-                new_links.append({"source": blocker_id, "target": temp_id, "type": "blocks"})
+            if not isinstance(blocker_ids, list): blocker_ids = [blocker_ids]
+            for blocker_id in blocker_ids: new_links.append({"source": blocker_id, "target": temp_id, "type": "blocks"})
 
-    if skipped_count == len(plan.get("proposed_issues", [])):
+    if skipped_count == len(proposed_issues):
         console.print("[bold yellow]All proposed issues already exist. No changes made.[/bold yellow]")
         return
 
@@ -135,22 +162,15 @@ def _generate_local_files(plan: dict, console: Console):
     with open(PROJECT_MAP_PATH, 'w') as f: yaml.dump(project_map, f, sort_keys=False)
     console.print(f"[green]✓ Project map updated with {len(new_nodes)} new issues and {len(new_links)} new links.[/green]")
 
-def _upload_to_gitlab(plan: dict, console: Console):
-    """Placeholder function for uploading artifacts to GitLab."""
-    console.print("\n[bold green]Uploading artifacts to GitLab...[/bold green]")
-    # In a real implementation, this would call gitlab_service.upload_artifacts_to_gitlab
-    pprint(plan)
-    console.print("[yellow]GitLab upload is not yet implemented.[/yellow]")
-
 
 @app.command("create-feature")
 def create_feature(
     feature_description: str = typer.Argument(..., help="A high-level description of the new feature."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Run the process without uploading to GitLab."),
     mock_ai: bool = typer.Option(False, "--mock-ai", help="Use a mocked AI response for testing.")
 ):
     """
-    Initiates the AI-assisted workflow to create a new feature.
+    Initiates the AI-assisted workflow to create a new feature by generating local story map files.
+    Use the `gemini-cli upload story-map` command to push these changes to GitLab.
     """
     console = Console()
     
@@ -236,12 +256,6 @@ def create_feature(
     if approved:
         # Step 7: Local Generation
         _generate_local_files(plan, console)
-
-        # Step 8: Conditional Upload to GitLab
-        if dry_run:
-            console.print("\n[bold yellow]--dry-run enabled. Skipping GitLab upload.[/bold yellow]")
-        else:
-            _upload_to_gitlab(plan, console)
     
     console.print("\n[bold]Workflow finished.[/bold]")
 
