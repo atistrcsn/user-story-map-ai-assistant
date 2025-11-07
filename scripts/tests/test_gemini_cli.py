@@ -133,6 +133,47 @@ class TestCreateFeature:
         # Verify that the file generation was never triggered
         mock_generate_files.assert_not_called()
 
+    def test_create_feature_robust_path_resolution(self, mocker, tmp_path):
+        """
+        Tests that the create-feature command correctly resolves various file path formats
+        (absolute, relative) returned by the AI without raising 'file not found' warnings.
+        """
+        # Arrange
+        # 1. Mock the services that are not under test
+        mocker.patch('gitlab_service.smart_sync')
+        mocker.patch('gitlab_service.build_project_map', return_value={"status": "success", "map_data": {}})
+        mocker.patch('ai_service.generate_implementation_plan', return_value={"proposed_issues": []}) # No new issues needed for this test
+        
+        # 2. Create a temporary directory structure to act as the project root
+        # We need to mock the PROJECT_ROOT constant used in the CLI script
+        mocker.patch('gemini_cli.PROJECT_ROOT', str(tmp_path))
+        
+        docs_dir = tmp_path / "docs"
+        docs_dir.mkdir()
+        gitlab_data_dir = tmp_path / "gitlab_data"
+        gitlab_data_dir.mkdir()
+
+        # 3. Create dummy files in the temporary structure
+        (docs_dir / "doc1.md").write_text("Doc 1 content")
+        (gitlab_data_dir / "story1.md").write_text("Story 1 content")
+
+        # 4. Mock the AI to return a mix of absolute and relative paths
+        mock_relevant_files = [
+            str(docs_dir / "doc1.md"),  # Absolute path
+            "gitlab_data/story1.md"      # Relative path
+        ]
+        mocker.patch('ai_service.get_relevant_context_files', return_value=mock_relevant_files)
+
+        # Act
+        result = runner.invoke(app, ["create-feature", "test feature"])
+
+        # Assert
+        assert result.exit_code == 0
+        # The critical assertion: ensure no warnings about file not found were printed
+        assert "Warning: Could not find file" not in result.stdout
+        # Verify the AI was called and the files were "identified"
+        assert "AI identified 2 relevant files" in result.stdout
+
 
 class TestGenerateLocalFiles:
 

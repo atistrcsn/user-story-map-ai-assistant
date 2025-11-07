@@ -50,8 +50,11 @@ def _get_context_from_project_map() -> list[dict]:
         # Only include nodes that have a numeric IID (i.e., they exist on GitLab)
         if isinstance(node.get("id"), int):
             summary = node.get("title", "No title")
-            path = os.path.join("gitlab_data", node.get("local_path", ""))
-            sources.append({"path": path, "summary": summary})
+            relative_path = node.get("local_path")
+            if relative_path:
+                # Always construct an absolute path
+                path = os.path.join(DATA_DIR, relative_path)
+                sources.append({"path": path, "summary": summary})
         
     return sources
 
@@ -219,19 +222,28 @@ def create_feature(
     if relevant_files:
         with console.status("[bold green]Reading content of relevant files...[/bold green]"):
             contents = []
-            # Get the project root directory (assuming the script is in a subdirectory like /scripts)
-            project_root = os.path.dirname(os.path.abspath(__file__))
-            
             for file_path in relevant_files:
-                # Construct an absolute path from the project root
-                absolute_path = os.path.join(project_root, '..', file_path)
+                # --- Robust Path Resolution (v2) ---
+                # This logic correctly handles paths that are already absolute vs. those that are relative.
+                absolute_path = file_path
+                if not os.path.isabs(absolute_path):
+                    absolute_path = os.path.join(PROJECT_ROOT, absolute_path)
+
+                # Security check: ensure the final path is within the project directory.
+                safe_path = os.path.abspath(absolute_path)
+                if not safe_path.startswith(PROJECT_ROOT):
+                    console.print(f"[yellow]Warning: Skipping file outside project directory: {file_path}[/yellow]")
+                    continue
+
                 try:
-                    with open(absolute_path, 'r', encoding='utf-8') as f:
+                    with open(safe_path, 'r', encoding='utf-8') as f:
+                        # Use the original file_path for the log message for consistency
                         contents.append(f"---\nFile: {file_path}\nContent: {f.read()}\n---")
                 except FileNotFoundError:
-                    console.print(f"[yellow]Warning: Could not find file {absolute_path}. Skipping.[/yellow]")
+                    # Use the original file_path in the warning message
+                    console.print(f"[yellow]Warning: Could not find file {file_path}. Skipping.[/yellow]")
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not read file {absolute_path} due to {e}. Skipping.[/yellow]")
+                    console.print(f"[yellow]Warning: Could not read file {file_path} due to {e}. Skipping.[/yellow]")
             context_content = "\n".join(contents)
     
     # Step 5: AI Deep Analysis
