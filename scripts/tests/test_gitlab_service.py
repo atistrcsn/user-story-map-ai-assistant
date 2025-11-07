@@ -467,3 +467,32 @@ class TestUploadArtifactsToGitlab:
 
         # CRITICAL: Verify that no attempt was made to create a link for the existing relationship
         mock_existing_epic.links.create.assert_not_called()
+
+
+class TestGitlabServiceErrors:
+
+    def test_functions_fail_without_env_vars(self, monkeypatch):
+        """
+        Tests that service functions return an error status when GitLab
+        environment variables are not set.
+        """
+        # Arrange
+        # Unset environment variables for the duration of this test
+        monkeypatch.delenv("GITLAB_URL", raising=False)
+        monkeypatch.delenv("GITLAB_PRIVATE_TOKEN", raising=False)
+        monkeypatch.delenv("GITLAB_PROJECT_ID", raising=False)
+
+        # Act
+        sync_result = smart_sync()
+        build_map_result = build_project_map()
+        upload_result = upload_artifacts_to_gitlab({})
+
+        # Assert
+        assert sync_result["status"] == "error"
+        assert "GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set" in sync_result["message"]
+
+        assert build_map_result["status"] == "error"
+        assert "GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set" in build_map_result["message"]
+        
+        assert upload_result["status"] == "error"
+        assert "GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set" in upload_result["message"]

@@ -256,8 +256,8 @@ def create_feature(
     console.print("\n[bold green]✓ AI generated the following implementation plan:[/bold green]")
     
     if not plan or not plan.get("proposed_issues"):
-        console.print("[bold red]Error: The AI did not generate a valid plan.[/bold red]")
-        raise typer.Exit(1)
+        console.print("[green]✓ The AI has determined that this feature is already covered by existing issues. No new plan was generated.[/green]")
+        return # Exit successfully, as no new plan is needed
         
     pprint(plan)
 

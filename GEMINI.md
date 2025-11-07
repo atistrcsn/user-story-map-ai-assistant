@@ -124,3 +124,4 @@ To ensure consistent and efficient dependency management across the project, `uv
 *   **Adding a dependency:** Use `uv add <package_name>` (e.g., `uv add requests`). For development dependencies, use `uv add --dev <package_name>` (e.g., `uv add --dev pytest-cov`).
 *   **Removing a dependency:** Use `uv remove <package_name>` (e.g., `uv remove requests`). For development dependencies, use `uv remove --dev <package_name>`.
 *   **Running commands within the virtual environment:** Always prefix your commands with `uv run` (e.g., `uv run your_script.py`, `uv run pytest`). This ensures that the command is executed within the project's isolated `uv` virtual environment, using the correct Python interpreter and installed packages.
+*   **Running test with coverage:** `uv run pytest --cov=scripts scripts/tests/`

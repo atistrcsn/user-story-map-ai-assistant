@@ -85,4 +85,5 @@ build/
 # Gemini CLI specific files
 /.gemini_context/
 /.gemini_cache/
-
+/gitlab_data/
+project_map.yaml

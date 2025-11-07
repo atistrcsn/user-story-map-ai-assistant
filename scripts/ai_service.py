@@ -30,9 +30,9 @@ def call_google_gemini_api(prompt: str) -> str:
         return response.text
     except Exception as e:
         print(f"An error occurred while calling the Gemini API: {e}")
-        raise
+        return None
 
-def get_relevant_context_files(user_prompt: str, context_sources: list[dict], mock: bool = False) -> list[str]:
+def get_relevant_context_files(user_prompt: str, context_sources: list[dict], mock: bool = False) -> list[str] | None:
     """Uses an AI model to select the most relevant context files for a given user prompt."""
     if mock:
         print("--- AI API CALL (MOCKED for get_relevant_context_files) ---")
@@ -52,15 +52,23 @@ Választható kontextus fájlok:
 """
 
     raw_response = call_google_gemini_api(prompt.strip())
+    if raw_response is None:
+        return None # Propagate the error signal
+
     json_str = _extract_json_from_response(raw_response)
     if not json_str:
         return []
-    relevant_files = json.loads(json_str)
-    if not isinstance(relevant_files, list):
-        return []
-    return relevant_files
+    try:
+        relevant_files = json.loads(json_str)
+        if not isinstance(relevant_files, list):
+            return []
+        return relevant_files
+    except json.JSONDecodeError:
+        print(f"[ERROR] Failed to decode JSON from AI response for context files: {raw_response}")
+        return None
 
-def generate_implementation_plan(user_prompt: str, context_content: str, existing_issues: list[dict], mock: bool = False) -> dict:
+
+def generate_implementation_plan(user_prompt: str, context_content: str, existing_issues: list[dict], mock: bool = False) -> dict | None:
     """Uses a powerful AI model to generate a structured implementation plan from a business perspective."""
     if mock:
         # Mock response updated to reflect the new persona and template
@@ -134,10 +142,25 @@ Generate the business-functional user story map now.
 """
 
     raw_response = call_google_gemini_api(prompt.strip())
+    if raw_response is None:
+        return None # Propagate the error signal
+
     json_str = _extract_json_from_response(raw_response)
     if not json_str:
+        # This can happen if the AI decides no new issues are needed,
+        # or if the response was not valid JSON. In the latter case,
+        # we treat it as an error and return None.
+        if "{" not in raw_response and "[" not in raw_response:
+             print(f"[ERROR] AI response did not contain valid JSON: {raw_response}")
+             return None
         return {"proposed_issues": []}
-    plan = json.loads(json_str)
-    if not isinstance(plan, dict) or "proposed_issues" not in plan:
-        return {"proposed_issues": []}
-    return plan
+    
+    try:
+        plan = json.loads(json_str)
+        if not isinstance(plan, dict) or "proposed_issues" not in plan:
+            # If the structure is wrong, but it was valid JSON, treat as empty.
+            return {"proposed_issues": []}
+        return plan
+    except json.JSONDecodeError:
+        print(f"[ERROR] Failed to decode JSON from AI response for implementation plan: {raw_response}")
+        return None

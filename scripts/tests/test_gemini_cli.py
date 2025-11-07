@@ -1,4 +1,5 @@
 import pytest
+import typer
 from typer.testing import CliRunner
 import os
 import json
@@ -111,6 +112,27 @@ class TestCreateFeature:
         assert result.exit_code == 1
         mock_gitlab_client.assert_called_once()
 
+    def test_create_feature_aborted_by_user(self, mock_gitlab_client, mocker):
+        """
+        Tests that the workflow correctly stops if the user does not approve the plan.
+        """
+        # Arrange
+        # Mock typer.confirm to raise Abort, simulating the behavior of abort=True
+        mocker.patch('typer.confirm', side_effect=typer.Abort)
+        
+        # Mock the function that would be called after approval to check it's NOT called
+        mock_generate_files = mocker.patch('gemini_cli._generate_local_files')
+
+        # Act
+        result = runner.invoke(app, ["create-feature", "test feature"])
+
+        # Assert
+        # typer.confirm with abort=True raises Abort, which results in exit code 1
+        assert result.exit_code == 1
+        
+        # Verify that the file generation was never triggered
+        mock_generate_files.assert_not_called()
+
 
 class TestGenerateLocalFiles:
 
@@ -193,3 +215,22 @@ class TestGenerateLocalFiles:
             node_in_map = nodes_by_id[temp_id]
             assert 'description' in node_in_map
             assert node_in_map['description'] == issue_from_plan['description']
+
+
+class TestUploadStoryMap:
+
+    def test_upload_story_map_no_file(self):
+        """
+        Tests that the 'upload story-map' command fails gracefully with an error
+        message if the project_map.yaml file does not exist.
+        """
+        # Arrange
+        # The isolated_filesystem fixture ensures no project_map.yaml exists yet
+
+        # Act
+        result = runner.invoke(app, ["upload", "story-map"])
+
+        # Assert
+        assert result.exit_code == 1
+        assert "not found" in result.stdout
+        assert "Please generate a story map first" in result.stdout

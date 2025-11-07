@@ -21,7 +21,7 @@ This directory contains the Python scripts for the GitLab AI Assistant, includin
 
 4.  **Install dependencies:**
     ```sh
-    uv pip sync pyproject.toml
+    uv add sync pyproject.toml
     ```
 
 5.  **Configure Environment Variables:**

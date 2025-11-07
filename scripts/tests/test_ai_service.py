@@ -97,3 +97,44 @@ Content: This epic covers all features related to user profiles.
         assert issues[1]["labels"] == ["Type::Task"]
         assert issues[0]["dependencies"]["blocks"] == ["NEW_2"]
 
+    @patch('google.generativeai.GenerativeModel.generate_content')
+    def test_generate_implementation_plan_handles_invalid_json(self, mock_generate_content):
+        """
+        Tests that the function returns None when the AI API returns a non-JSON string.
+        """
+        # Arrange
+        user_prompt = "A test prompt"
+        context_content = "Some context"
+        
+        # Mock the API to return a string that is not valid JSON
+        mock_api_response = "This is just a plain text response, not JSON."
+        mock_response_object = MagicMock()
+        mock_response_object.text = mock_api_response
+        mock_generate_content.return_value = mock_response_object
+
+        # Act
+        plan = generate_implementation_plan(user_prompt, context_content, [])
+
+        # Assert
+        mock_generate_content.assert_called_once()
+        assert plan is None
+
+    @patch('google.generativeai.GenerativeModel.generate_content')
+    def test_generate_implementation_plan_handles_api_exception(self, mock_generate_content):
+        """
+        Tests that the function returns None when the AI API call raises an exception.
+        """
+        # Arrange
+        user_prompt = "A test prompt"
+        context_content = "Some context"
+        
+        # Mock the API call to raise a generic exception
+        mock_generate_content.side_effect = Exception("Simulated API failure")
+
+        # Act
+        plan = generate_implementation_plan(user_prompt, context_content, [])
+
+        # Assert
+        mock_generate_content.assert_called_once()
+        assert plan is None
+
