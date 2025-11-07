@@ -42,7 +42,7 @@ This feature enables a user to provide a high-level idea and have the AI assista
     *   `build_project_map`: Függőségi gráfot és projekt térképet épít az issue-kból.
     *   Tiszta, tesztelhető logika, leválasztva a CLI rétegről.
 *   **Comprehensive Test Coverage:** Unit tesztek a CLI és a service rétegre is (`test_gemini_cli.py`, `test_gitlab_service.py`).
-*   **Implement AI-generált Issue-k Feltöltése a GitLab-re (Implementáció és Tesztelés):** Az AI által generált és felhasználó által jóváhagyott issue-k (beleértve a címkéket és az issue linkeket a hierarchia számára) feltöltése a GitLab-re, beleértve a `gitlab_service.upload_artifacts_to_gitlab` függvény meghívását a generált `project_map` adatokkal, és automatizált tesztekkel.
+*   **Implement AI-generált Issue-k Feltöltése a GitLab-re (Implementáció és Tesztelés):** Az AI által generált és felhasználó által jóváhagyott issue-k (beleértve a címkéket és az issue linkeket a hierarchia számára) feltöltése a GitLab-re egy különálló `gemini-cli upload story-map` parancs segítségével történik, miután a `create-feature` parancs helyileg generálta a story map-et. Ez magában foglalja a `gitlab_service.upload_artifacts_to_gitlab` függvény meghívását a generált `project_map` adatokkal, és automatizált tesztekkel.
 
 ### Next Steps (Planned):
 

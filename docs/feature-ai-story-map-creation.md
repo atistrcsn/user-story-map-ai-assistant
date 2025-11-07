@@ -39,7 +39,7 @@ The process is interactive, with the AI performing analysis and proposing soluti
 
 **6. Robust Upload to GitLab**
 *   **Státusz:** `[KÉSZ]`
-*   **Understanding:** This is the final, critical phase where local changes are propagated to the remote GitLab server. This process is designed for reliability and data integrity.
+*   **Understanding:** This is the final, critical phase where local changes are propagated to the remote GitLab server via a dedicated `gemini-cli upload story-map` command. This process is designed for reliability and data integrity.
     *   **Ordered Execution:** Changes are applied in a strict sequence: 1) Create any new labels required by the new issues. 2) Create the new issues themselves, capturing their GitLab IIDs. 3) Add dependency comments (`/blocks #<IID>` or `/blocked_by #<IID>`) to the relevant issues, using the newly obtained IIDs.
     *   **API Throttling:** Small, controlled delays are introduced between API calls to prevent hitting GitLab's rate limits and ensure smooth operation.
     *   **Transactional Logic & Rollback:** The system logs its intended actions. In case of any failure during the upload process (e.g., network error, API rejection), it attempts to roll back any changes already successfully made (e.g., delete partially created issues) to leave the GitLab project in a consistent, clean state. If a full rollback isn't feasible, it provides a clear report of partial success for manual intervention.
