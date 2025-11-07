@@ -38,13 +38,13 @@ This feature enables a user to provide a high-level idea and have the AI assista
 *   **Initial GitLab Sync Script:** (`sync_gitlab.py`) for basic data fetching.
 *   **`gemini-cli` Command-Line Tool:** Initial version created with `typer`.
 *   **Refactored Service Layer (`gitlab_service.py`):**
-    *   `smart_sync`: Intelligens, időbélyeg alapú szinkronizáció a GitLab-bel.
-    *   `build_project_map`: Függőségi gráfot és projekt térképet épít az issue-kból.
-    *   Tiszta, tesztelhető logika, leválasztva a CLI rétegről.
+    *   `smart_sync`: Intelligent, timestamp-based synchronization with GitLab.
+    *   `build_project_map`: Builds a dependency graph and project map from issues.
+    *   Clean, testable logic, decoupled from the CLI layer.
 *   **Comprehensive Test Coverage:** Unit tesztek a CLI és a service rétegre is (`test_gemini_cli.py`, `test_gitlab_service.py`).
-*   **Implement AI-generált Issue-k Feltöltése a GitLab-re (Implementáció és Tesztelés):** Az AI által generált és felhasználó által jóváhagyott issue-k (beleértve a címkéket és az issue linkeket a hierarchia számára) feltöltése a GitLab-re egy különálló `gemini-cli upload story-map` parancs segítségével történik, miután a `create-feature` parancs helyileg generálta a story map-et. Ez magában foglalja a `gitlab_service.upload_artifacts_to_gitlab` függvény meghívását a generált `project_map` adatokkal, és automatizált tesztekkel.
+*   **Implement Upload of AI-generated Issues to GitLab (Implementation and Testing):** AI-generated and user-approved issues (including labels and issue links for hierarchy) are uploaded to GitLab using a separate `gemini-cli upload story-map` command, after the `create-feature` command has locally generated the story map. This includes calling the `gitlab_service.upload_artifacts_to_gitlab` function with the generated `project_map` data, and automated tests.
 
-*   **Függőségi láncok helyes kezelése:** Kijavítottam egy hibát, ahol a `create-feature` parancs által generált `project_map.yaml` nem tartalmazta a helyes `contains` típusú linkeket az újonnan létrehozott epicek és sztorik között. A rendszer most már korrektül felépíti a hierarchikus linkeket a `project_map.yaml`-ban, biztosítva a szülő-gyermek kapcsolatot az agilis elemek között.
+*   **Correct handling of dependency chains:** Fixed a bug where the `create-feature` command by generated `project_map.yaml` did not contain the correct `contains` type links between newly created epics and stories. The system now correctly builds hierarchical links in `project_map.yaml`, ensuring parent-child relationships between agile elements.
 
 ### Next Steps (Planned):
 
@@ -176,12 +176,42 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 ---
 
-## Feladatok és Incidensek
+## Tasks and Incidents
 
-*   **INC-001: `project_map.yaml` hiányzó `description` mező javítása**
-    *   **Státusz:** [KÉSZ]
-    *   **Leírás:** A `gemini_cli.py` `_generate_local_files` függvénye nem adta hozzá a `description` mezőt a `project_map.yaml`-ban létrehozott új issue node-okhoz. Ez üres leírások feltöltését okozta. A hiba javítva lett, a mező most már helyesen bekerül a project map-be.
+*   **INC-001: Fix missing `description` field in `project_map.yaml`**
+    *   **Status:** [DONE]
+    *   **Description:** The `_generate_local_files` function in `gemini_cli.py` did not add the `description` field to the new issue nodes created in `project_map.yaml`. This caused empty descriptions to be uploaded. The bug has been fixed, and the field is now correctly included in the project map.
 
-*   **INC-002: A feltöltési logika hibásan próbált létező linkeket újra létrehozni**
-    *   **Státusz:** [KÉSZ]
-    *   **Leírás:** A `gitlab_service.py` `upload_artifacts_to_gitlab` függvénye a `project_map.yaml`-ban lévő összes `contains` típusú linket megpróbálta létrehozni, beleértve a már létezőket is. Ez `409 Conflict` API hibát okozott. A logika javítva lett, hogy a feltöltés már csak az újonnan generált issue-khoz tartozó linkeket hozza létre.
+*   **INC-002: Upload logic incorrectly attempted to recreate existing links**
+    *   **Status:** [DONE]
+    *   **Description:** The `upload_artifacts_to_gitlab` function in `gitlab_service.py` attempted to create all `contains` type links in `project_map.yaml`, including those that already existed. This caused a `409 Conflict` API error. The logic has been fixed so that the upload now only creates links belonging to newly generated issues.
+
+### **Proposed Backlog Item**
+
+**Title:** Feature: Anonymize GitLab Context During AI Processing
+
+**User Story:**
+*As a security-conscious user, I want to ensure that project-specific sensitive identifiers (like GitLab URL and Project ID) are not sent to external AI providers, so that I can preserve project data privacy and security.*
+
+**Description:**
+In the current operation, the `create-feature` command directly passes the content of relevant issues and documents, which may contain the project's URL and identifiers, as part of the prompt to the AI LLM. This poses a data privacy risk.
+
+This task aims to introduce a "filter and re-substitution" mechanism that anonymizes outgoing data and de-anonymizes incoming data.
+
+**Implementation Steps:**
+
+1.  **Outgoing Data Redaction (Prompt Anonymization):**
+    *   Before `gemini_cli` sends the prompt to `ai_service`, a new function must scan the entire context text.
+    *   All occurrences of `GITLAB_URL` and `GITLAB_PROJECT_ID` must be replaced with a generic, non-identifiable placeholder (e.g., `[PROJECT_URL]` and `[PROJECT_ID]`).
+    *   Only this anonymized context can be passed to the AI.
+
+2.  **Incoming Data Re-substitution (Response De-anonymization):**
+    *   After `ai_service` returns the JSON-formatted, generated story map, a new function must scan the `description` field of all items in the `proposed_issues` list.
+    *   All occurrences of the `[PROJECT_URL]` and `[PROJECT_ID]` placeholders must be replaced with the original values from environment variables.
+    *   The `_generate_local_files` and subsequent `upload_artifacts_to_gitlab` functions will then receive this "restored" data structure.
+
+**Acceptance Criteria:**
+*   Prompts sent to the AI provider are guaranteed not to contain the specific GitLab URL or Project ID.
+*   Any `[PROJECT_URL]` and `[PROJECT_ID]` placeholders potentially returned in AI-generated issue descriptions are correctly restored to their original values.
+*   The process must be completely transparent to the user.
+*   New unit tests will be introduced to verify both the anonymization and de-anonymization logic.
