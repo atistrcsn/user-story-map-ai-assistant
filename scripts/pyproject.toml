@@ -16,8 +16,16 @@ dependencies = [
 test = [
     "pytest",
     "pytest-mock",
+    "pytest-cov>=7.0.0"
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-mock",
+    "pytest-cov>=7.0.0",
+]
 

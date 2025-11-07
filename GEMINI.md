@@ -116,3 +116,11 @@ You are **FORBIDDEN** from starting implementation until you have completed and 
 *   **Issue:** A `ValueError: Invalid format specifier` can occur in Python scripts (like `ai_service.py`) when generating prompts using f-strings.
 *   **Cause:** This error happens if the prompt template contains literal curly braces (`{` or `}`) that are intended for the final text (e.g., in a JSON example). The Python f-string parser incorrectly interprets these single braces as placeholders for variables.
 *   **Solution:** All literal curly braces within an f-string **must** be escaped by doubling them. For example, a JSON example like `{"key": "value"}` must be written as `{{"key": "value"}}` inside an f-string. This is a mandatory best practice for prompt engineering within this project's Python code.
+
+### Dependency Management with `uv`
+
+To ensure consistent and efficient dependency management across the project, `uv` is the mandated tool. Always adhere to the following commands:
+
+*   **Adding a dependency:** Use `uv add <package_name>` (e.g., `uv add requests`). For development dependencies, use `uv add --dev <package_name>` (e.g., `uv add --dev pytest-cov`).
+*   **Removing a dependency:** Use `uv remove <package_name>` (e.g., `uv remove requests`). For development dependencies, use `uv remove --dev <package_name>`.
+*   **Running commands within the virtual environment:** Always prefix your commands with `uv run` (e.g., `uv run your_script.py`, `uv run pytest`). This ensures that the command is executed within the project's isolated `uv` virtual environment, using the correct Python interpreter and installed packages.
