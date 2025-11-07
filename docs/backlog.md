@@ -76,7 +76,7 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 ## Implement AI Integration (Pre-filtering)
 
-**Status:** DONE
+**Status:** [DONE]
 
 **Description:** Implement the first phase of the two-phase AI analysis. This involves creating a mechanism that uses a fast AI model to intelligently select the most relevant context files (documentation and existing issues) based on a user's high-level feature request.
 

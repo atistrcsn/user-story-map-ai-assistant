@@ -9,7 +9,9 @@ Ez a dokumentum a GitLab-alapú fejlesztési munkafolyamat támogatására terve
 A nagy méretű kontextus kezelése és az LLM token limitjének betartása érdekében egy kétfázisú elemzési stratégiát alkalmazunk.
 
 *   **1. Fázis: Előszűrés:** Ahelyett, hogy a teljes kontextust egyből a fő LLM-nek adnánk, egy kisebb, gyorsabb modellt használunk a releváns információk kiszűrésére. Ez a modell megkapja a felhasználói kérést és a projektben lévő összes dokumentum/issue listáját (címekkel és rövid összefoglalókkal), majd visszaadja a legrelevánsabb 10-15 fájl listáját.
+    *   **Modellválasztás:** Ehhez a fázishoz a `gemini-2.5-flash-lite` modellt használjuk, amely optimalizált a sebességre és a költséghatékonyságra.
 *   **2. Fázis: Mélyelemzés:** A fő, nagy teljesítményű LLM már csak ezzel a szűkített, releváns kontextussal dolgozik, ami növeli a válaszok pontosságát és csökkenti a költségeket.
+    *   **Modellválasztás:** Ehhez a fázishoz a `gemini-2.5-pro` modellt használjuk, amely a legmagasabb minőségű válaszokat biztosítja.
 *   **Automatikus Összefoglalás:** A szinkronizációs folyamat során a hosszú issue leírásokról és dokumentumokról a rendszer automatikusan rövid összefoglalókat generál és ezeket a `/.gemini_cache/` könyvtárban tárolja. Az előszűrési fázis elsősorban ezekkel a sűrített kivonatokkal dolgozik.
 
 ### b. Intelligens Kontextus Szinkronizálás (Smart Sync)

@@ -18,13 +18,13 @@ def _extract_json_from_response(text: str) -> str:
         return match.group(0)
     return "" # Return empty string if no JSON found
 
-def call_google_gemini_api(prompt: str) -> str:
+def call_google_gemini_api(prompt: str, model_name: str = 'gemini-2.5-pro') -> str:
     """Calls the Google Gemini API with a given prompt."""
     if not genai:
         print("Error: Google Gemini API client is not configured.")
         return ''
     try:
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        model = genai.GenerativeModel(model_name)
         config = genai.GenerationConfig(temperature=0)
         response = model.generate_content(prompt, generation_config=config)
         return response.text
@@ -51,7 +51,7 @@ Választható kontextus fájlok:
 {os.linesep.join([f'{i}. Fájl: {s["path"]}, Leírás: {s["summary"]}' for i, s in enumerate(context_sources, 1)])}
 """
 
-    raw_response = call_google_gemini_api(prompt.strip())
+    raw_response = call_google_gemini_api(prompt.strip(), model_name='gemini-2.5-flash-lite')
     if raw_response is None:
         return None # Propagate the error signal
 
@@ -141,7 +141,7 @@ Based on the "User Request", create a plan of user stories. Before you begin, ca
 Generate the business-functional user story map now.
 """
 
-    raw_response = call_google_gemini_api(prompt.strip())
+    raw_response = call_google_gemini_api(prompt.strip(), model_name='gemini-2.5-pro')
     if raw_response is None:
         return None # Propagate the error signal
 
