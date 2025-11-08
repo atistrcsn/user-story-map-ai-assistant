@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gemini-gitlab-workflow"
+version = "1.0.0"
+authors = [
+  { name="Gemini", email="gemini@google.com" },
+]
+description = "A Gemini-powered workflow tool to manage GitLab issues via a CLI and conversational AI."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "python-gitlab",
+    "pyyaml",
+    "typer[all]",
+    "python-dotenv",
+    "networkx",
+    "rich",
+    "google-generativeai"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mock",
+    "pytest-cov>=7.0.0"
+]
+
+[project.scripts]
+ggw = "gemini_gitlab_workflow.cli:app"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+

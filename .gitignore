@@ -87,3 +87,4 @@ build/
 /.gemini_cache/
 /gitlab_data/
 project_map.yaml
+.gemini-sessions/

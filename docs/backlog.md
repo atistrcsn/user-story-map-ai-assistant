@@ -172,6 +172,27 @@ This feature enables a user to provide a high-level idea and have the AI assista
     *   Run `pytest` again to confirm all tests now pass (TDD Green phase).
     *   Perform a manual, end-to-end test by running the `create-feature` command to see a real AI-generated response.
 
+---
+
+### Refactor Scripts into a Production-Ready Python Package
+
+*   **Status:** `[IN PROGRESS]`
+*   **Description:** Refactor the collection of Python scripts into a formal, installable Python package named `gemini-gitlab-workflow`. The goal is to create a robust, maintainable, and extensible command-line tool (`ggw`) for managing the GitLab workflow, and to prepare it for deep integration as a custom tool within the Gemini CLI.
+*   **Implementation Plan:**
+    *   `[DONE]` Structure the project as a standard Python package with `pyproject.toml`.
+    *   `[DONE]` Create a centralized, hierarchical configuration system (`config.py`).
+    *   `[DONE]` Develop a user-friendly Command-Line Interface (CLI) using Typer (`cli.py`).
+    *   `[DONE]` Modularize the core logic into separate services (`gitlab_service.py`, `ai_service.py`).
+    *   `[DONE]` Create a setup script (`setup.sh`) for easy installation and configuration.
+    *   `[IN PROGRESS]` Integrate the package's functionality as a custom tool for the Gemini CLI (`gemini_tools.py`).
+    *   `[PLANNED]` Write comprehensive unit and integration tests for the new package structure.
+*   **Testing Ideas:**
+    *   Unit test individual functions in `gitlab_service` and `ai_service`.
+    *   Test CLI commands (`ggw create-feature`, `ggw sync map`, etc.) with mocked APIs.
+    *   End-to-end test: run the `setup.sh` script and then invoke the custom tool from within a Gemini CLI session.
+
+---
+
 ## Future Features / Enhancements:
 
 ---

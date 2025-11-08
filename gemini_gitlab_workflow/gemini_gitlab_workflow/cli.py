@@ -2,30 +2,30 @@ import typer
 import yaml
 import os
 import glob
-import gitlab_service
-import ai_service
-from rich.console import Console
-from rich.pretty import pprint
 import re
 import unicodedata
+from rich.console import Console
+from rich.pretty import pprint
+
+# Use relative imports within the package
+from . import gitlab_service
+from . import ai_service
+from . import config
 
 app = typer.Typer()
 
-# --- Absolute Path Definitions ---
-# Define the project root by going up one level from the script's directory (/scripts)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-
-# Define absolute paths for all key locations
-PROJECT_MAP_PATH = os.path.join(PROJECT_ROOT, "project_map.yaml")
-DOCS_DIR = os.path.join(PROJECT_ROOT, "docs")
-DATA_DIR = os.path.join(PROJECT_ROOT, "gitlab_data")
-# --- End of Path Definitions ---
+# --- Path Definitions are now handled by config.py ---
 
 def _get_context_from_docs() -> list[dict]:
     """Gathers context from all markdown files in the docs directory."""
+    # Note: This function assumes a 'docs' folder in the project root.
+    # This could also be made configurable in the future.
+    docs_dir = os.path.join(config.PROJECT_ROOT, "docs")
     sources = []
-    for filepath in glob.glob(f"{DOCS_DIR}/**/*.md", recursive=True):
+    if not os.path.exists(docs_dir):
+        return sources
+        
+    for filepath in glob.glob(f"{docs_dir}/**/*.md", recursive=True):
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 summary = f.readline().strip().replace('#', '').strip()
@@ -39,48 +39,47 @@ def _get_context_from_project_map() -> list[dict]:
     Gathers context from the project_map.yaml file, including only issues
     that have a real, numeric GitLab IID.
     """
+    project_map_path = config.get_project_map_path()
+    data_dir = config.get_data_dir()
     sources = []
-    if not os.path.exists(PROJECT_MAP_PATH):
+    if not os.path.exists(project_map_path):
         return sources
     
-    with open(PROJECT_MAP_PATH, 'r') as f:
+    with open(project_map_path, 'r') as f:
         project_map = yaml.safe_load(f)
     
     for node in project_map.get("nodes", []):
-        # Only include nodes that have a numeric IID (i.e., they exist on GitLab)
         if isinstance(node.get("id"), int):
             summary = node.get("title", "No title")
             relative_path = node.get("local_path")
             if relative_path:
-                # Always construct an absolute path
-                path = os.path.join(DATA_DIR, relative_path)
+                path = os.path.join(data_dir, relative_path)
                 sources.append({"path": path, "summary": summary})
         
     return sources
 
 def _slugify(text):
-    """Convert text to a URL-friendly slug, handling accented characters."""
-    text = str(text) # Ensure text is string
+    """Convert text to a URL-friendly slug."""
+    text = str(text)
     text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
     text = text.lower()
     text = re.sub(r'[^a-z0-9]+', '-', text)
     text = re.sub(r'--+', '-', text)
     return text.strip('-')
 
-# ... (rest of _get_context functions)
-
 def _generate_local_files(plan: dict, console: Console):
     """
     Generates local .md files and updates project_map.yaml based on the AI plan.
-    This function uses a two-pass approach to correctly place new stories
-    under their corresponding new epics and create the 'contains' link.
     """
     console.print("\n[bold green]Plan approved. Generating local files...[/bold green]")
     
-    if not os.path.exists(PROJECT_MAP_PATH):
+    project_map_path = config.get_project_map_path()
+    data_dir = config.get_data_dir()
+    
+    if not os.path.exists(project_map_path):
         project_map = {"nodes": [], "links": []}
     else:
-        with open(PROJECT_MAP_PATH, 'r') as f:
+        with open(project_map_path, 'r') as f:
             project_map = yaml.safe_load(f)
 
     existing_titles = {node['title'] for node in project_map.get("nodes", [])}
@@ -91,11 +90,13 @@ def _generate_local_files(plan: dict, console: Console):
         console.print("[yellow]Warning: No new issues proposed in the plan.[/yellow]")
         return
 
-    # --- Pass 1: Map out new epics: their paths and temporary IDs ---
-    new_epic_map = {} # Maps 'Epic::<name>' label to a dict with {'path': ..., 'id': ...}
+    new_epic_map = {}
+    epic_type_name = config.settings['labels']['epic_type_name']
+    story_type_name = config.settings['labels']['story_type_name']
+
     for issue in proposed_issues:
         labels = issue.get("labels", [])
-        if "Type::Epic" in labels:
+        if epic_type_name in labels:
             epic_dir_path_str = gitlab_service.get_issue_filepath(issue.get("title"), labels)
             if epic_dir_path_str:
                 temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
@@ -105,7 +106,6 @@ def _generate_local_files(plan: dict, console: Console):
                         "id": issue["id"]
                     }
 
-    # --- Pass 2: Generate all files, creating 'contains' links for stories ---
     for issue in proposed_issues:
         title = issue["title"]
         if title in existing_titles:
@@ -117,34 +117,25 @@ def _generate_local_files(plan: dict, console: Console):
         labels = issue.get("labels", [])
         relative_filepath = None
 
-        # If it's a story, try to find its parent epic's path and ID from our map
-        if "Type::Story" in labels:
+        if story_type_name in labels:
             temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
             if temp_epic_label and temp_epic_label in new_epic_map:
                 parent_epic_info = new_epic_map[temp_epic_label]
                 parent_epic_path = parent_epic_info["path"]
                 parent_epic_id = parent_epic_info["id"]
-
                 story_filename = f"story-{_slugify(title)}.md"
                 relative_filepath = os.path.join(parent_epic_path, story_filename)
-                console.print(f"[DIAG] Story '{title}' mapped to new Epic path: {relative_filepath}")
-                
-                # CRITICAL FIX: Create the 'contains' link
                 new_links.append({"source": parent_epic_id, "target": temp_id, "type": "contains"})
-                console.print(f"[DIAG] Created 'contains' link from Epic '{parent_epic_id}' to Story '{temp_id}'")
 
-
-        # If path wasn't determined above, use the default logic
         if not relative_filepath:
             relative_filepath = gitlab_service.get_issue_filepath(title, labels)
         
-        if not relative_filepath: # Fallback for unassigned items
+        if not relative_filepath:
             relative_filepath = os.path.join("_unassigned", f"{_slugify(title)}.md")
 
-        # Create file and node
         frontmatter = {"iid": temp_id, "title": title, "state": "opened", "labels": labels}
         markdown_content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{issue.get('description', '')}\n"
-        full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        full_filepath = os.path.join(data_dir, relative_filepath)
         os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f: f.write(markdown_content)
         console.print(f"  - Created file: {full_filepath}")
@@ -152,16 +143,11 @@ def _generate_local_files(plan: dict, console: Console):
         new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": relative_filepath, "description": issue.get('description', '')}
         new_nodes.append(new_node)
         
-        # Handle dependencies (unchanged)
         dependencies = issue.get("dependencies", {})
-        if dependencies and "blocks" in dependencies:
-            target_ids = dependencies["blocks"]
-            if not isinstance(target_ids, list): target_ids = [target_ids]
-            for target_id in target_ids: new_links.append({"source": temp_id, "target": target_id, "type": "blocks"})
-        if dependencies and "is_blocked_by" in dependencies:
-            blocker_ids = dependencies["is_blocked_by"]
-            if not isinstance(blocker_ids, list): blocker_ids = [blocker_ids]
-            for blocker_id in blocker_ids: new_links.append({"source": blocker_id, "target": temp_id, "type": "blocks"})
+        if "blocks" in dependencies:
+            for target_id in dependencies["blocks"]: new_links.append({"source": temp_id, "target": target_id, "type": "blocks"})
+        if "is_blocked_by" in dependencies:
+            for blocker_id in dependencies["is_blocked_by"]: new_links.append({"source": blocker_id, "target": temp_id, "type": "blocks"})
 
     if skipped_count == len(proposed_issues):
         console.print("[bold yellow]All proposed issues already exist. No changes made.[/bold yellow]")
@@ -171,9 +157,8 @@ def _generate_local_files(plan: dict, console: Console):
     if "links" not in project_map: project_map["links"] = []
     project_map["links"].extend(new_links)
 
-    with open(PROJECT_MAP_PATH, 'w') as f: yaml.dump(project_map, f, sort_keys=False)
+    with open(project_map_path, 'w') as f: yaml.dump(project_map, f, sort_keys=False)
     console.print(f"[green]✓ Project map updated with {len(new_nodes)} new issues and {len(new_links)} new links.[/green]")
-
 
 @app.command("create-feature")
 def create_feature(
@@ -182,85 +167,64 @@ def create_feature(
 ):
     """
     Initiates the AI-assisted workflow to create a new feature by generating local story map files.
-    Use the `gemini-cli upload story-map` command to push these changes to GitLab.
     """
     console = Console()
+    project_map_path = config.get_project_map_path()
     
     console.print(f"[bold]Starting AI-assisted creation for feature:[/bold] '{feature_description}'")
     
-    # Step 1: Smart Sync and build project map
     with console.status("[bold green]Performing smart sync and rebuilding project map...[/bold green]"):
-        # First, ensure the cache is up-to-date
         gitlab_service.smart_sync()
-        
-        # Always rebuild the map and local files to ensure consistency
         build_result = gitlab_service.build_project_map()
         if build_result["status"] == "error":
             console.print(f"[bold red]Error rebuilding project map:[/bold red] {build_result['message']}")
             raise typer.Exit(1)
-        with open(PROJECT_MAP_PATH, 'w') as f:
+        with open(project_map_path, 'w') as f:
             yaml.dump(build_result["map_data"], f, sort_keys=False)
     console.print("[green]✓ Project map is up-to-date and local files are consistent.[/green]")
 
-    # Step 2: Gather context
     with console.status("[bold green]Gathering context sources...[/bold green]"):
         all_sources = _get_context_from_docs() + _get_context_from_project_map()
     console.print(f"Found {len(all_sources)} potential context sources.")
 
-    # Step 3: AI Pre-filtering
     with console.status("[bold green]Sending to AI for pre-filtering analysis...[/bold green]"):
         relevant_files = ai_service.get_relevant_context_files(feature_description, all_sources, mock_ai)
     if relevant_files:
         console.print(f"[green]✓ AI identified {len(relevant_files)} relevant files:[/green]")
-        for file_path in relevant_files:
-            console.print(f"  - {file_path}")
+        for file_path in relevant_files: console.print(f"  - {file_path}")
     else:
         console.print("[yellow]Warning: AI could not identify relevant context files.[/yellow]")
 
-    # Step 4: Read relevant content
     context_content = ""
     if relevant_files:
         with console.status("[bold green]Reading content of relevant files...[/bold green]"):
             contents = []
             for file_path in relevant_files:
-                # --- Robust Path Resolution (v2) ---
-                # This logic correctly handles paths that are already absolute vs. those that are relative.
                 absolute_path = file_path
                 if not os.path.isabs(absolute_path):
-                    absolute_path = os.path.join(PROJECT_ROOT, absolute_path)
-
-                # Security check: ensure the final path is within the project directory.
+                    absolute_path = os.path.join(config.PROJECT_ROOT, absolute_path)
+                
                 safe_path = os.path.abspath(absolute_path)
-                if not safe_path.startswith(PROJECT_ROOT):
+                if not safe_path.startswith(str(config.PROJECT_ROOT)):
                     console.print(f"[yellow]Warning: Skipping file outside project directory: {file_path}[/yellow]")
                     continue
-
                 try:
                     with open(safe_path, 'r', encoding='utf-8') as f:
-                        # Use the original file_path for the log message for consistency
                         contents.append(f"---\nFile: {file_path}\nContent: {f.read()}\n---")
                 except FileNotFoundError:
-                    # Use the original file_path in the warning message
                     console.print(f"[yellow]Warning: Could not find file {file_path}. Skipping.[/yellow]")
-                except Exception as e:
-                    console.print(f"[yellow]Warning: Could not read file {file_path} due to {e}. Skipping.[/yellow]")
             context_content = "\n".join(contents)
     
-    # Step 5: AI Deep Analysis
     with console.status("[bold green]Sending to AI for deep analysis to generate plan...[/bold green]"):
-        # Gather existing issues (title and labels) to help AI avoid duplicates and reuse epics
         existing_issues_context = []
-        if os.path.exists(PROJECT_MAP_PATH):
-            with open(PROJECT_MAP_PATH, 'r') as f:
+        if os.path.exists(project_map_path):
+            with open(project_map_path, 'r') as f:
                 project_map = yaml.safe_load(f)
                 if project_map and "nodes" in project_map:
-                    for node in project_map["nodes"]:
-                        existing_issues_context.append({
-                            "title": node.get("title"),
-                            "labels": node.get("labels", []),
-                            "state": node.get("state")
-                        })
-
+                    existing_issues_context = [
+                        {"title": n.get("title"), "labels": n.get("labels", []), "state": n.get("state")}
+                        for n in project_map["nodes"]
+                    ]
         plan = ai_service.generate_implementation_plan(
             feature_description, context_content, existing_issues_context, mock_ai
         )
@@ -269,20 +233,17 @@ def create_feature(
     
     if not plan or not plan.get("proposed_issues"):
         console.print("[green]✓ The AI has determined that this feature is already covered by existing issues. No new plan was generated.[/green]")
-        return # Exit successfully, as no new plan is needed
+        return
         
     pprint(plan)
 
-    # Step 6: Structured Dialogue (User Confirmation)
     console.print("\n")
     approved = typer.confirm("Do you approve this implementation plan?", abort=True)
     
     if approved:
-        # Step 7: Local Generation
         _generate_local_files(plan, console)
     
     console.print("\n[bold]Workflow finished.[/bold]")
-
 
 sync_app = typer.Typer()
 app.add_typer(sync_app, name="sync", help="Synchronize data from GitLab.")
@@ -291,6 +252,7 @@ app.add_typer(sync_app, name="sync", help="Synchronize data from GitLab.")
 def sync_map():
     """Synchronize GitLab issues and build the project map."""
     console = Console()
+    project_map_path = config.get_project_map_path()
     with console.status("[bold green]Synchronizing with GitLab and building project map...[/bold green]"):
         result = gitlab_service.build_project_map()
 
@@ -298,12 +260,10 @@ def sync_map():
         console.print(f"[bold red]Error building project map:[/bold red] {result['message']}")
         raise typer.Exit(1)
 
-    map_data = result["map_data"]
-    with open(PROJECT_MAP_PATH, 'w') as f:
-        yaml.dump(map_data, f, sort_keys=False)
+    with open(project_map_path, 'w') as f:
+        yaml.dump(result["map_data"], f, sort_keys=False)
 
-    console.print(f"[green]✓ Project map successfully built with {result['issues_found']} issues and saved to {PROJECT_MAP_PATH}.[/green]")
-
+    console.print(f"[green]✓ Project map successfully built with {result['issues_found']} issues and saved to {project_map_path}.[/green]")
 
 upload_app = typer.Typer()
 app.add_typer(upload_app, name="upload", help="Upload artifacts to GitLab.")
@@ -314,17 +274,19 @@ def upload_story_map():
     Uploads the locally generated story map (from project_map.yaml) to GitLab.
     """
     console = Console()
+    project_map_path = config.get_project_map_path()
+
     console.print("[bold]Initiating upload of story map to GitLab...[/bold]")
 
-    if not os.path.exists(PROJECT_MAP_PATH):
-        console.print(f"[bold red]Error:[/bold red] {PROJECT_MAP_PATH} not found. Please generate a story map first using 'gemini-cli create-feature'.")
+    if not os.path.exists(project_map_path):
+        console.print(f"[bold red]Error:[/bold red] {project_map_path} not found. Please generate a story map first.")
         raise typer.Exit(1)
 
     try:
-        with open(PROJECT_MAP_PATH, 'r') as f:
+        with open(project_map_path, 'r') as f:
             project_map = yaml.safe_load(f)
     except Exception as e:
-        console.print(f"[bold red]Error:[/bold red] Failed to read {PROJECT_MAP_PATH}: {e}")
+        console.print(f"[bold red]Error:[/bold red] Failed to read {project_map_path}: {e}")
         raise typer.Exit(1)
 
     with console.status("[bold green]Uploading artifacts to GitLab...[/bold green]"):

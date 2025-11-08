@@ -76,3 +76,45 @@ graph TD
 ├── GEMINI.md                # Project-specific Gemini rules and guidelines
 └── .gitignore               # Git ignore rules
 ```
+
+---
+
+## 7. Project Automation: The `gemini-gitlab-workflow` Package
+
+The project's automation and GitLab integration capabilities have been refactored from a collection of simple scripts into a professional, standalone Python package. This provides a robust, maintainable, and extensible foundation for all workflow automation tasks.
+
+### 7.1. High-Level Summary: From Scripts to a Package
+
+The most significant change is the evolution of the `scripts` folder into a formal, installable Python package named `gemini-gitlab-workflow`. This package includes a dedicated Command-Line Interface (CLI), accessible via the `ggw` (Gemini GitLab Workflow) command, which exposes the entire functionality of the tool. This structure is more robust, maintainable, and scalable than the previous script-based approach.
+
+### 7.2. Key Architectural Changes
+
+*   **Centralized Configuration (`config.py`):** A new hierarchical configuration system has been introduced. It loads settings in the following order of precedence: default values -> global user config (`~/.config/gemini_workflows/config.yaml`) -> project-specific config (`.gemini-workflow.yaml`). This eliminates hardcoded paths and secrets, making the tool portable and secure.
+
+*   **Structured Command-Line Interface (`cli.py`):** Built with the `Typer` library, the `ggw` command provides a modern, user-friendly CLI. It is organized into logical subcommands:
+    *   `ggw create-feature`: The main AI-driven workflow for planning new features.
+    *   `ggw sync map`: Synchronizes data from GitLab and builds the local project map.
+    *   `ggw upload story-map`: Uploads the locally generated plans and issues back to GitLab.
+
+*   **Modular Services (`gitlab_service.py`, `ai_service.py`):** The core logic is now separated into distinct service modules. The `gitlab_service` handles all communication with the GitLab API, using the central configuration for credentials. It now leverages GitLab's "Issue Links" feature for more reliable hierarchy management between Epics and Stories.
+
+*   **Formal Packaging (`pyproject.toml`):** This file defines the project as an installable Python package, specifying its metadata, dependencies, and the `ggw` command as its entry point.
+
+### 7.3. The Core Workflow: `ggw create-feature`
+
+This command orchestrates the complete AI-assisted feature planning process:
+
+1.  **Sync:** It starts by updating the local data cache from GitLab.
+2.  **Context Gathering:** It reads the project's `/docs` folder and existing GitLab issues to build a comprehensive understanding of the project's current state.
+3.  **AI-Powered Filtering:** The AI service identifies the most relevant documents and issues based on the user's high-level feature description.
+4.  **AI-Powered Planning:** The content of these relevant files is sent to the AI, which generates a detailed implementation plan broken down into new Epics and Stories.
+5.  **User Approval:** The generated plan is presented to the user for confirmation before any files are created.
+6.  **Local File Generation:** Upon approval, the tool creates the corresponding local `.md` files for each new issue in the appropriate directory structure.
+
+### 7.4. Installation and Gemini CLI Integration (`setup.sh`)
+
+The `setup.sh` script automates the entire setup process:
+
+1.  **Package Installation:** It installs the `gemini-gitlab-workflow` package, making the `ggw` command available system-wide.
+2.  **Configuration:** It creates the necessary global configuration directory and a template file for the user to add their GitLab token.
+3.  **Gemini CLI Integration:** Crucially, the script registers the package's capabilities as a custom tool for the Gemini CLI by copying `gemini_tools.py` into the `~/.gemini/custom_tools` directory. This allows the Gemini assistant to invoke the workflow commands directly.
