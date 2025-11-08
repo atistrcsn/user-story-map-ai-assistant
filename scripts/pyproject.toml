@@ -1,0 +1,31 @@
+[project]
+name = "gitlab-sync"
+version = "0.1.0"
+description = "A script to sync GitLab issues to local markdown files."
+dependencies = [
+    "python-gitlab",
+    "pyyaml",
+    "typer",
+    "python-dotenv",
+    "networkx",
+    "rich",
+    "google-generativeai"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-mock",
+    "pytest-cov>=7.0.0"
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-mock",
+    "pytest-cov>=7.0.0",
+]
+

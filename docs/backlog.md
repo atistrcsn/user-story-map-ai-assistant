@@ -176,15 +176,16 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 ### Refactor Scripts into a Production-Ready Python Package
 
-*   **Status:** `[IN PROGRESS]`
+*   **Status:** `[PLANNED]`
 *   **Description:** Refactor the collection of Python scripts into a formal, installable Python package named `gemini-gitlab-workflow`. The goal is to create a robust, maintainable, and extensible command-line tool (`ggw`) for managing the GitLab workflow, and to prepare it for deep integration as a custom tool within the Gemini CLI.
 *   **Implementation Plan:**
-    *   `[DONE]` Structure the project as a standard Python package with `pyproject.toml`.
-    *   `[DONE]` Create a centralized, hierarchical configuration system (`config.py`).
-    *   `[DONE]` Develop a user-friendly Command-Line Interface (CLI) using Typer (`cli.py`).
-    *   `[DONE]` Modularize the core logic into separate services (`gitlab_service.py`, `ai_service.py`).
-    *   `[DONE]` Create a setup script (`setup.sh`) for easy installation and configuration.
-    *   `[IN PROGRESS]` Integrate the package's functionality as a custom tool for the Gemini CLI (`gemini_tools.py`).
+    *   `[PLANNED]` Prepare src-layout as best practice
+    *   `[PLANNED]` Structure the project as a standard Python package with `pyproject.toml`.
+    *   `[PLANNED]` Create a centralized, hierarchical configuration system (`config.py`).
+    *   `[PLANNED]` Develop a user-friendly Command-Line Interface (CLI) using Typer (`cli.py`).
+    *   `[PLANNED]` Modularize the core logic into separate services (`gitlab_service.py`, `ai_service.py`).
+    *   `[PLANNED]` Create a setup script (`setup.sh`) for easy installation and configuration.
+    *   `[PLANNED]` Integrate the package's functionality as a custom tool for the Gemini CLI (`gemini_tools.py`).
     *   `[PLANNED]` Write comprehensive unit and integration tests for the new package structure.
 *   **Testing Ideas:**
     *   Unit test individual functions in `gitlab_service` and `ai_service`.
