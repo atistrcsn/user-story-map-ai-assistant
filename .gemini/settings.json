@@ -11,7 +11,7 @@
         "hideBanner": true,
         "showMemoryUsage": true,
         "showLineNumbers": true,
-        "useFullWidth": true,
+        "useFullWidth": false,
         "hideWindowTitle": true,
         "accessibility": {
             "disableLoadingPhrases": true
