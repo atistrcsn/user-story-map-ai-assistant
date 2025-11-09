@@ -14,21 +14,21 @@ This document outlines the detailed, step-by-step plan for refactoring the Pytho
 
 ## Phase 1: Project Structure Transformation (src-layout)
 
-**Status:** [PLANNED]
+**Status:** [DONE]
 
 **Goal:** Migrate the current scripts into a standard `src-layout` structure directly within the project root.
 
-- [ ] Create a new `src` directory in the project root (`/workspaces`).
-- [ ] Create a new `tests` directory in the project root.
-- [ ] Create a package directory: `src/gemini_gitlab_workflow`.
-- [ ] Move Python source files from `scripts/` to `src/gemini_gitlab_workflow/`.
-- [ ] Create an `__init__.py` file in `src/gemini_gitlab_workflow/` to mark it as a package.
-- [ ] Move test files from `scripts/tests/` to the new root `tests/` directory.
-- [ ] Move `scripts/pyproject.toml` to the project root (`/workspaces/pyproject.toml`).
-- [ ] Update `pyproject.toml` to reflect the new `src-layout` structure.
-- [ ] Update all import paths in the source code and tests to be absolute based on the new package structure.
-- [ ] Run the test suite (`uv run pytest`) to verify that all changes are working correctly.
-- [ ] Document the new project structure in `docs/architecture-design-document.md`.
+- [x] Create a new `src` directory in the project root (`/workspaces`).
+- [x] Create a new `tests` directory in the project root.
+- [x] Create a package directory: `src/gemini_gitlab_workflow`.
+- [x] Move Python source files from `scripts/` to `src/gemini_gitlab_workflow/`.
+- [x] Create an `__init__.py` file in `src/gemini_gitlab_workflow/` to mark it as a package.
+- [x] Move test files from `scripts/tests/` to the new root `tests/` directory.
+- [x] Move `scripts/pyproject.toml` to the project root (`/workspaces/pyproject.toml`).
+- [x] Update `pyproject.toml` to reflect the new `src-layout` structure.
+- [x] Update all import paths in the source code and tests to be absolute based on the new package structure.
+- [x] Run the test suite (`uv run pytest`) to verify that all changes are working correctly.
+- [x] Document the new project structure in `docs/architecture-design-document.md`.
 
 ---
 

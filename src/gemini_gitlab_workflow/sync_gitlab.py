@@ -3,7 +3,7 @@
 """Main script to synchronize GitLab data."""
 
 import gitlab
-import config
+from gemini_gitlab_workflow import config
 import os
 import re
 import yaml
@@ -15,6 +15,15 @@ AGILE_HIERARCHY_MAP = {
     "Story": "stories",
     "Task": "tasks",
 }
+
+# --- Absolute Path Definitions ---
+# Define the project root by going up one level from the script's directory (/src/gemini_gitlab_workflow)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR))) # Go up three levels from src/gemini_gitlab_workflow
+
+# Define absolute paths for data and cache directories
+DATA_DIR = os.path.join(PROJECT_ROOT, "gitlab_data")
+# --- End of Path Definitions ---
 
 def _slugify(text):
     """Converts text to a URL-friendly slug."""
@@ -91,11 +100,11 @@ def main():
     """Main function to run the sync process."""
     print("Sync script starting...")
 
-    base_output_dir = "gitlab_data"
-    if os.path.exists(base_output_dir):
-        shutil.rmtree(base_output_dir)
-        print(f"Cleaned up existing {base_output_dir} directory.")
-    os.makedirs(base_output_dir, exist_ok=True)
+    # Use DATA_DIR from absolute path definitions
+    if os.path.exists(DATA_DIR):
+        shutil.rmtree(DATA_DIR)
+        print(f"Cleaned up existing {DATA_DIR} directory.")
+    os.makedirs(DATA_DIR, exist_ok=True)
 
     # Initialize GitLab connection
     try:
@@ -119,7 +128,7 @@ def main():
     print(f"Found {len(issues)} issues.")
 
     for issue in issues:
-        filepath = _get_issue_filepath(issue, base_output_dir)
+        filepath = _get_issue_filepath(issue, DATA_DIR) # Use DATA_DIR here
         markdown_content = _generate_markdown_content(issue)
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)

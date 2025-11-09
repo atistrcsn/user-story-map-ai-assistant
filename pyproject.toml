@@ -1,5 +1,5 @@
 [project]
-name = "gitlab-sync"
+name = "gemini-gitlab-workflow"
 version = "0.1.0"
 description = "A script to sync GitLab issues to local markdown files."
 dependencies = [
@@ -19,8 +19,11 @@ test = [
     "pytest-cov>=7.0.0"
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["src"]
 
 [dependency-groups]
 dev = [

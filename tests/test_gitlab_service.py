@@ -3,7 +3,7 @@ import json
 import os
 from unittest.mock import MagicMock, patch, call
 
-from gitlab_service import smart_sync, build_project_map, upload_artifacts_to_gitlab
+from gemini_gitlab_workflow.gitlab_service import smart_sync, build_project_map, upload_artifacts_to_gitlab
 
 # --- MOCK DATA --- #
 
@@ -128,7 +128,7 @@ def mock_gitlab_project(mocker, mock_issue_backbone, mock_issue_epic, mock_issue
     
     mock_gl_client = MagicMock()
     mock_gl_client.projects.get.return_value = mock_project
-    mocker.patch('gitlab_service.get_gitlab_client', return_value=mock_gl_client)
+    mocker.patch('gemini_gitlab_workflow.gitlab_service.get_gitlab_client', return_value=mock_gl_client)
     
     return mock_project
 
@@ -136,8 +136,8 @@ def mock_gitlab_project(mocker, mock_issue_backbone, mock_issue_epic, mock_issue
 def mock_cache_paths(mocker, tmp_path):
     """Fixture to patch cache path constants to use a temporary directory."""
     cache_file_path = tmp_path / "timestamps.json"
-    mocker.patch('gitlab_service.CACHE_DIR', str(tmp_path))
-    mocker.patch('gitlab_service.TIMESTAMPS_CACHE_PATH', str(cache_file_path))
+    mocker.patch('gemini_gitlab_workflow.gitlab_service.CACHE_DIR', str(tmp_path))
+    mocker.patch('gemini_gitlab_workflow.gitlab_service.TIMESTAMPS_CACHE_PATH', str(cache_file_path))
     return cache_file_path
 
 
@@ -284,8 +284,8 @@ class TestBuildProjectMap:
 
         mock_gl_client = MagicMock()
         mock_gl_client.projects.get.return_value = mock_project
-        mocker.patch('gitlab_service.get_gitlab_client', return_value=mock_gl_client)
-
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.get_gitlab_client', return_value=mock_gl_client)
+        
         # Act
         result = build_project_map()
 
@@ -331,7 +331,7 @@ class TestUploadArtifactsToGitlab:
 
         mock_gl_client = MagicMock()
         mock_gl_client.projects.get.return_value = mock_project
-        mocker.patch('gitlab_service.get_gitlab_client', return_value=mock_gl_client)
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.get_gitlab_client', return_value=mock_gl_client)
         
         return mock_project
 

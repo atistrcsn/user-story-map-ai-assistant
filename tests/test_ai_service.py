@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from ai_service import get_relevant_context_files, generate_implementation_plan
+from gemini_gitlab_workflow.ai_service import get_relevant_context_files, generate_implementation_plan
 
 class TestAIService:
 

@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Absolute Path Definitions ---
-# Define the project root by going up one level from the script's directory (/scripts)
+# Define the project root by going up one level from the script's directory (/src/gemini_gitlab_workflow)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR))) # Go up three levels from src/gemini_gitlab_workflow
 
 # Define absolute paths for data and cache directories
 CACHE_DIR = os.path.join(PROJECT_ROOT, ".gemini_cache")

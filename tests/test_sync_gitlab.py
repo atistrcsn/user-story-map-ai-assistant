@@ -1,10 +1,7 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
 import pytest
 from unittest.mock import Mock
-from sync_gitlab import _slugify, _generate_markdown_content, AGILE_HIERARCHY_MAP, _get_issue_filepath
+import os
+from gemini_gitlab_workflow.sync_gitlab import _slugify, _generate_markdown_content, AGILE_HIERARCHY_MAP, _get_issue_filepath
 
 # Mock GitLab Issue object for testing
 class MockGitlabIssue:
@@ -223,7 +220,7 @@ def test_get_issue_filepath_with_non_hierarchy_labels():
 
 # Tests for main() function
 from unittest.mock import patch, mock_open
-from sync_gitlab import main
+from gemini_gitlab_workflow.sync_gitlab import main
 from io import StringIO
 
 
@@ -246,7 +243,7 @@ class MockGitlabAPI:
         pass
 
 @patch('gitlab.Gitlab')
-@patch('sync_gitlab.config')
+@patch('gemini_gitlab_workflow.sync_gitlab.config')
 @patch('os.makedirs')
 @patch('os.path.exists')
 @patch('shutil.rmtree')
@@ -323,8 +320,8 @@ def test_main_sync_process(
     main()
 
     # Assertions
-    mock_rmtree.assert_called_once_with("gitlab_data")
-    mock_makedirs.assert_any_call("gitlab_data", exist_ok=True)
+    mock_rmtree.assert_called_once_with("/gitlab_data")
+    mock_makedirs.assert_any_call("/gitlab_data", exist_ok=True)
 
     # Verify GitLab API calls
     mock_gitlab_class.assert_called_once_with(
@@ -335,37 +332,36 @@ def test_main_sync_process(
 
     # Verify file writing operations, paths and content
     expected_filepath_1 = os.path.join(
-        "gitlab_data", 
-        "backbones", "feature-a", 
+        "/gitlab_data",
+        "backbones", "feature-a",
         "epics", "test-issue-1",
         "test-issue-1.md"
     )
     expected_content_1 = _generate_markdown_content(mock_issue_1)
 
     expected_filepath_2 = os.path.join(
-        "gitlab_data", 
-        "stories", "test-issue-2", 
+        "/gitlab_data",
+        "stories", "test-issue-2",
         "tasks", "subtask-for-epic",
         "test-issue-2.md"
     )
     expected_content_2 = _generate_markdown_content(mock_issue_2)
 
     expected_filepath_3 = os.path.join(
-        "gitlab_data", 
-        "_unassigned", 
+        "/gitlab_data",
+        "_unassigned",
         "unassigned-issue.md"
     )
     expected_content_3 = _generate_markdown_content(mock_issue_3)
 
     mock_open_file.assert_any_call(expected_filepath_1, "w", encoding="utf-8")
     mock_open_file().write.assert_any_call(expected_content_1)
-
+    
     mock_open_file.assert_any_call(expected_filepath_2, "w", encoding="utf-8")
     mock_open_file().write.assert_any_call(expected_content_2)
-
+    
     mock_open_file.assert_any_call(expected_filepath_3, "w", encoding="utf-8")
     mock_open_file().write.assert_any_call(expected_content_3)
-
     # Ensure os.makedirs is called for each unique directory needed
     mock_makedirs.assert_any_call(os.path.dirname(expected_filepath_1), exist_ok=True)
     mock_makedirs.assert_any_call(os.path.dirname(expected_filepath_2), exist_ok=True)

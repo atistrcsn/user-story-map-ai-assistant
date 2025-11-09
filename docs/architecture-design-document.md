@@ -54,24 +54,33 @@ graph TD
 
 ```
 /workspaces
+├── src/                     # Source code for the gemini-gitlab-workflow package
+│   └── gemini_gitlab_workflow/
+│       ├── __init__.py      # Marks the directory as a Python package
+│       ├── ai_service.py    # AI interaction service
+│       ├── config.py        # Centralized configuration system
+│       ├── gemini_cli.py    # Command-line interface (CLI)
+│       ├── gitlab_service.py# GitLab API interaction service
+│       └── sync_gitlab.py   # Main synchronization logic
+├── tests/                   # Unit and integration tests
+│   ├── conftest.py          # Pytest configuration
+│   ├── test_ai_service.py
+│   ├── test_gemini_cli.py
+│   ├── test_gitlab_service.py
+│   └── test_sync_gitlab.py
 ├── gitlab_data/             # Synchronized GitLab data (Markdown files)
 │   ├── backbones/
 │   │   └── <backbone_name>/
 │   │       └── <epic_name>/
 │   │           ├── epic.md
 │   │           └── story-<story_name>.md
-├── scripts/                 # Python synchronization scripts
-│   ├── config.py            # GitLab API configuration (ignored by git)
-│   ├── pyproject.toml       # Python project dependencies (uv)
-│   ├── README.md            # Script usage instructions
-│   ├── sync_gitlab.py       # Main synchronization script
-│   └── tests/               # Unit and integration tests for scripts
 ├── docs/                    # Project documentation
 │   ├── architecture-design-document.md
 │   ├── backlog.md
 │   ├── product-requirements-document.md
 │   ├── software-requirements-specification.md
 │   └── technical-design-document.md
+├── pyproject.toml           # Project metadata and dependencies (uv)
 ├── README.md                # Top-level project overview
 ├── GEMINI.md                # Project-specific Gemini rules and guidelines
 └── .gitignore               # Git ignore rules

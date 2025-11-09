@@ -6,9 +6,10 @@ import json
 from unittest.mock import MagicMock
 
 # The CLI app to be tested
-from gemini_cli import app
+from gemini_gitlab_workflow.gemini_cli import app
 # The service layer to be mocked
-import gitlab_service
+from gemini_gitlab_workflow import gitlab_service
+from gemini_gitlab_workflow import ai_service
 
 runner = CliRunner()
 
@@ -36,17 +37,17 @@ def mock_issue_2():
 def mock_gitlab_client(mocker, mock_issue_1, mock_issue_2):
     """Fixture to mock the entire gitlab_service module and its functions."""
     # This fixture now mocks the service function, not the raw gitlab client
-    mock_smart_sync = mocker.patch('gitlab_service.smart_sync')
+    mock_smart_sync = mocker.patch('gemini_gitlab_workflow.gitlab_service.smart_sync')
     
     # Mock AI service calls to prevent actual API calls during CLI tests
-    mocker.patch('ai_service.get_relevant_context_files', return_value=[])
-    mocker.patch('ai_service.generate_implementation_plan', return_value={
+    mocker.patch('gemini_gitlab_workflow.ai_service.get_relevant_context_files', return_value=[])
+    mocker.patch('gemini_gitlab_workflow.ai_service.generate_implementation_plan', return_value={
         "proposed_issues": [
             {"id": "NEW_1", "title": "Mock Story", "description": "Mock description.", "labels": ["Type::Story"], "dependencies": {}}
         ]
     })
     mocker.patch('typer.confirm', return_value=True)
-    mocker.patch('gitlab_service.build_project_map', return_value={
+    mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={
         "status": "success",
         "map_data": {"nodes": [], "links": []},
         "issues_found": 0
@@ -100,7 +101,7 @@ class TestCreateFeature:
             "message": "Invalid GitLab token"
         }
         # Ensure build_project_map also returns an error to trigger the exit
-        mocker.patch('gitlab_service.build_project_map', return_value={
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={
             "status": "error",
             "message": "Build map error"
         })
@@ -121,7 +122,7 @@ class TestCreateFeature:
         mocker.patch('typer.confirm', side_effect=typer.Abort)
         
         # Mock the function that would be called after approval to check it's NOT called
-        mock_generate_files = mocker.patch('gemini_cli._generate_local_files')
+        mock_generate_files = mocker.patch('gemini_gitlab_workflow.gemini_cli._generate_local_files')
 
         # Act
         result = runner.invoke(app, ["create-feature", "test feature"])
@@ -140,13 +141,13 @@ class TestCreateFeature:
         """
         # Arrange
         # 1. Mock the services that are not under test
-        mocker.patch('gitlab_service.smart_sync')
-        mocker.patch('gitlab_service.build_project_map', return_value={"status": "success", "map_data": {}})
-        mocker.patch('ai_service.generate_implementation_plan', return_value={"proposed_issues": []}) # No new issues needed for this test
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.smart_sync')
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={"status": "success", "map_data": {}})
+        mocker.patch('gemini_gitlab_workflow.ai_service.generate_implementation_plan', return_value={"proposed_issues": []}) # No new issues needed for this test
         
         # 2. Create a temporary directory structure to act as the project root
         # We need to mock the PROJECT_ROOT constant used in the CLI script
-        mocker.patch('gemini_cli.PROJECT_ROOT', str(tmp_path))
+        mocker.patch('gemini_gitlab_workflow.gemini_cli.PROJECT_ROOT', str(tmp_path))
         
         docs_dir = tmp_path / "docs"
         docs_dir.mkdir()
@@ -162,7 +163,7 @@ class TestCreateFeature:
             str(docs_dir / "doc1.md"),  # Absolute path
             "gitlab_data/story1.md"      # Relative path
         ]
-        mocker.patch('ai_service.get_relevant_context_files', return_value=mock_relevant_files)
+        mocker.patch('gemini_gitlab_workflow.ai_service.get_relevant_context_files', return_value=mock_relevant_files)
 
         # Act
         result = runner.invoke(app, ["create-feature", "test feature"])
@@ -213,7 +214,7 @@ class TestGenerateLocalFiles:
         in the project_map.yaml.
         """
         # Arrange
-        from gemini_cli import _generate_local_files, PROJECT_MAP_PATH
+        from gemini_gitlab_workflow.gemini_cli import _generate_local_files, PROJECT_MAP_PATH
         from rich.console import Console
         import yaml
 
