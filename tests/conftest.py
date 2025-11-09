@@ -11,10 +11,9 @@ def isolated_filesystem(mocker, tmp_path):
     project_map_path = tmp_path / "project_map.yaml"
     data_dir = tmp_path / "gitlab_data"
     
-    # Patch the constants in the modules where they are used
-    mocker.patch('gemini_gitlab_workflow.cli.PROJECT_MAP_PATH', str(project_map_path))
-    mocker.patch('gemini_gitlab_workflow.cli.DATA_DIR', str(data_dir))
-    mocker.patch('gemini_gitlab_workflow.gitlab_service.DATA_DIR', str(data_dir))
+    # Patch the constants in the module where they are defined
+    mocker.patch('gemini_gitlab_workflow.config.PROJECT_MAP_PATH', str(project_map_path))
+    mocker.patch('gemini_gitlab_workflow.config.DATA_DIR', str(data_dir))
     
     # The test will run after this yield, using the patched paths
     yield
