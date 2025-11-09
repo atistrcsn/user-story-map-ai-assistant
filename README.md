@@ -11,90 +11,93 @@ This project is an intelligent CLI tool designed to streamline agile software de
 
 ---
 
-## Setup and Installation
+## Getting Started: A Two-Step Process
 
-This project is now a formal Python package (`gemini-gitlab-workflow`) and uses `uv` for environment and dependency management.
+### Step 1: System-Wide Installation (One Time)
+
+First, install the `ggw` command-line tool on your system.
 
 1.  **Prerequisites:**
     *   Python 3.12+
     *   `uv` installed (`pip install uv`)
 
 2.  **Run the Setup Script:**
-    From the project root (`/workspaces`), run the `setup.sh` script. This will:
-    *   Install the `gemini-gitlab-workflow` package in editable mode.
-    *   Create a global configuration directory (`~/.config/gemini_workflows/`).
-    *   Create a template `config.yaml` file for your GitLab details.
-    *   Copy `gemini_tools.py` for Gemini CLI integration.
+    From the `gemini-gitlab-workflow` project directory, run the setup script. This will install the `ggw` command and make it available system-wide.
 
     ```bash
     ./setup.sh
     ```
 
-3.  **Configure GitLab and Gemini API Keys:**
-    Edit the newly created configuration file (`~/.config/gemini_workflows/config.yaml`) with your GitLab instance URL, private token, project ID, and your Gemini API key.
+### Step 2: Project Initialization (For Each Project)
 
-    ```yaml
-    # GitLab API Configuration
-    gitlab_url: "https://your-gitlab-instance.com"
-    private_token: "your_private_token_here"
-    project_id: "your_gitlab_project_id"
+For every project you want to manage with `ggw`, you need to initialize it.
 
-    # Gemini API Configuration
-    gemini_worker_api_key: "your_gemini_api_key"
+1.  **Navigate to Your Project Directory:**
+    ```bash
+    cd /path/to/your/project
     ```
+
+2.  **Initialize the Project:**
+    Run the `init` command. This will create a `.env` file in your project directory.
+    ```bash
+    ggw init
+    ```
+
+3.  **Configure Your Project:**
+    Open the newly created `.env` file and fill in your specific GitLab and Gemini API credentials. The `ggw` tool will automatically use this file for all commands run within this directory.
 
 ---
 
 ## Core Workflow
 
-The primary workflow consists of three main steps, accessible via the `ggw` command. Always ensure you are in the project's `uv` environment or use `uv run`.
+Once your project is initialized and configured, you can start using the main commands.
 
-### Step 1: Synchronize with GitLab
+### 1. Synchronize with GitLab
 
-First, synchronize the local state with your GitLab project. This command fetches the latest issue data and rebuilds your local `gitlab_data/` directory and `project_map.yaml`.
+Fetch the latest issue data from GitLab and build your local `gitlab_data/` directory and `project_map.yaml`.
 
 ```bash
-uv run ggw sync map
+ggw sync map
 ```
 
-### Step 2: Create a New Feature
+### 2. Create a New Feature
 
 Provide a high-level description of a feature. The AI will analyze your project and propose a plan.
 
 ```bash
-uv run ggw create-feature "Implement user profile picture upload functionality"
+ggw create-feature "Implement user profile picture upload functionality"
 ```
 The tool will present a plan for your approval. If you approve it, it will generate the necessary local `.md` files and update `project_map.yaml`.
 
-### Step 3: Upload to GitLab
+### 3. Upload to GitLab
 
 After generating the local files, upload them to GitLab. This command reads the `project_map.yaml`, creates the new labels and issues, and sets up the hierarchical links.
 
 ```bash
-uv run ggw upload story-map
+ggw upload story-map
 ```
 
 ---
 
 ## Command Reference
 
-All commands are run via `uv run ggw [COMMANDS]`.
+*   `ggw init`
+    *   Initializes a project by creating a `.env` configuration file.
 
-*   `create-feature <FEATURE_DESCRIPTION>`
+*   `ggw create-feature <FEATURE_DESCRIPTION>`
     *   Starts the AI-assisted workflow to generate a plan for a new feature.
-    *   Generates local files upon user approval.
 
-*   `sync map`
-    *   Synchronizes with GitLab and rebuilds the local `project_map.yaml` and `gitlab_data/` directory.
+*   `ggw sync map`
+    *   Synchronizes with GitLab and rebuilds the local project map.
 
-*   `upload story-map`
-    *   Uploads new, locally generated issues and links from `project_map.yaml` to GitLab.
+*   `ggw upload story-map`
+    *   Uploads new, locally generated issues and links to GitLab.
 
 ---
 
 ## Running Tests
 
-To run the automated tests and generate a coverage report, use the following command from the project root:
+To run the automated tests for the `gemini-gitlab-workflow` package itself, use the following command from its root directory:
 
 ```bash
 uv run pytest --cov=src/gemini_gitlab_workflow tests/

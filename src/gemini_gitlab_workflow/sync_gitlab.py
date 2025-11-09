@@ -3,11 +3,15 @@
 """Main script to synchronize GitLab data."""
 
 import gitlab
-from gemini_gitlab_workflow import config
+from gemini_gitlab_workflow import gitlab_service
 import os
 import re
 import yaml
 import shutil
+from gemini_gitlab_workflow import config
+from dotenv import load_dotenv
+
+load_dotenv()
 
 AGILE_HIERARCHY_MAP = {
     "Backbone": "backbones",
@@ -15,15 +19,6 @@ AGILE_HIERARCHY_MAP = {
     "Story": "stories",
     "Task": "tasks",
 }
-
-# --- Absolute Path Definitions ---
-# Define the project root by going up one level from the script's directory (/src/gemini_gitlab_workflow)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR))) # Go up three levels from src/gemini_gitlab_workflow
-
-# Define absolute paths for data and cache directories
-DATA_DIR = os.path.join(PROJECT_ROOT, "gitlab_data")
-# --- End of Path Definitions ---
 
 def _slugify(text):
     """Converts text to a URL-friendly slug."""
@@ -101,15 +96,14 @@ def main():
     print("Sync script starting...")
 
     # Use DATA_DIR from absolute path definitions
-    if os.path.exists(DATA_DIR):
-        shutil.rmtree(DATA_DIR)
-        print(f"Cleaned up existing {DATA_DIR} directory.")
-    os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(config.DATA_DIR):
+        shutil.rmtree(config.DATA_DIR)
+        print(f"Cleaned up existing {config.DATA_DIR} directory.")
+    os.makedirs(config.DATA_DIR, exist_ok=True)
 
     # Initialize GitLab connection
     try:
-        gl = gitlab.Gitlab(config.GITLAB_URL, private_token=config.PRIVATE_TOKEN)
-        gl.auth()  # Authenticate to verify the token and URL
+        gl = gitlab_service.get_gitlab_client()
         print("Successfully authenticated to GitLab.")
     except Exception as e:
         print(f"Failed to authenticate to GitLab: {e}")
@@ -117,10 +111,13 @@ def main():
 
     # Get the project
     try:
-        project = gl.projects.get(config.PROJECT_PATH)
+        project_id = os.getenv("GGW_GITLAB_PROJECT_ID")
+        if not project_id:
+            raise ValueError("Error: GGW_GITLAB_PROJECT_ID must be set.")
+        project = gl.projects.get(project_id)
         print(f"Successfully found project: {project.name_with_namespace}")
     except Exception as e:
-        print(f"Failed to get project '{config.PROJECT_PATH}': {e}")
+        print(f"Failed to get project '{project_id}': {e}")
         return
 
     # Fetch issues
@@ -128,7 +125,7 @@ def main():
     print(f"Found {len(issues)} issues.")
 
     for issue in issues:
-        filepath = _get_issue_filepath(issue, DATA_DIR) # Use DATA_DIR here
+        filepath = _get_issue_filepath(issue, config.DATA_DIR) # Use config.DATA_DIR here
         markdown_content = _generate_markdown_content(issue)
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)

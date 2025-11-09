@@ -5,21 +5,11 @@ import json
 import yaml
 import shutil
 import time
+from gemini_gitlab_workflow import config
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-
-# --- Absolute Path Definitions ---
-# Define the project root by going up one level from the script's directory (/src/gemini_gitlab_workflow)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(SCRIPT_DIR))) # Go up three levels from src/gemini_gitlab_workflow
-
-# Define absolute paths for data and cache directories
-CACHE_DIR = os.path.join(PROJECT_ROOT, ".gemini_cache")
-TIMESTAMPS_CACHE_PATH = os.path.join(CACHE_DIR, "timestamps.json")
-DATA_DIR = os.path.join(PROJECT_ROOT, "gitlab_data")
-# --- End of Path Definitions ---
 
 def _slugify(text):
     """Convert text to a URL-friendly slug."""
@@ -36,7 +26,7 @@ def _slugify(text):
         if not relative_filepath:
             relative_filepath = os.path.join("_unassigned", f"{_slugify(issue.title)}.md")
         
-        full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        full_filepath = os.path.join(config.DATA_DIR, relative_filepath)
         gitlab_managed_files.add(full_filepath)
 
         os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
@@ -124,10 +114,10 @@ def _generate_markdown_content(issue):
         nodes_data.append(node)
 
 def get_gitlab_client():
-    gitlab_url = os.getenv("GITLAB_URL")
-    gitlab_private_token = os.getenv("GITLAB_PRIVATE_TOKEN")
+    gitlab_url = os.getenv("GGW_GITLAB_URL")
+    gitlab_private_token = os.getenv("GGW_GITLAB_PRIVATE_TOKEN")
     if not gitlab_url or not gitlab_private_token:
-        raise ValueError("Error: GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set.")
+        raise ValueError("Error: GGW_GITLAB_URL and GGW_GITLAB_PRIVATE_TOKEN must be set.")
     try:
         gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_private_token)
         gl.auth()
@@ -150,17 +140,17 @@ def parse_relationships(current_issue_iid: int, text: str) -> list[dict]:
 def smart_sync() -> dict:
     try:
         gl = get_gitlab_client()
-        project_id = os.getenv("GITLAB_PROJECT_ID")
+        project_id = os.getenv("GGW_GITLAB_PROJECT_ID")
         if not project_id:
-            raise ValueError("Error: GITLAB_PROJECT_ID must be set.")
+            raise ValueError("Error: GGW_GITLAB_PROJECT_ID must be set.")
         project = gl.projects.get(project_id)
     except (ValueError, ConnectionError) as e:
         return {"status": "error", "message": str(e)}
 
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    os.makedirs(config.CACHE_DIR, exist_ok=True)
     last_timestamps = {}
-    if os.path.exists(TIMESTAMPS_CACHE_PATH):
-        with open(TIMESTAMPS_CACHE_PATH, 'r') as f:
+    if os.path.exists(config.TIMESTAMPS_CACHE_PATH):
+        with open(config.TIMESTAMPS_CACHE_PATH, 'r') as f:
             try:
                 last_timestamps = json.load(f)
             except json.JSONDecodeError:
@@ -176,16 +166,16 @@ def smart_sync() -> dict:
 def build_project_map() -> dict:
     try:
         gl = get_gitlab_client()
-        project_id = os.getenv("GITLAB_PROJECT_ID")
+        project_id = os.getenv("GGW_GITLAB_PROJECT_ID")
         if not project_id:
-            raise ValueError("Error: GITLAB_PROJECT_ID must be set.")
+            raise ValueError("Error: GGW_GITLAB_PROJECT_ID must be set.")
         project = gl.projects.get(project_id)
     except (ValueError, ConnectionError) as e:
         return {"status": "error", "message": str(e)}
 
     issues_list = project.issues.list(all=True) # Get the full list once
     
-    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(config.DATA_DIR, exist_ok=True)
 
     nodes_data = []
     links_data = []
@@ -213,7 +203,7 @@ def build_project_map() -> dict:
             print(f"[DIAG] Mapped Epic {issue.iid} to path: {epic_map[issue.iid]}")
 
         # Write file and create node for the epic/other item
-        full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        full_filepath = os.path.join(config.DATA_DIR, relative_filepath)
         gitlab_managed_files.add(full_filepath)
         os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f:
@@ -266,7 +256,7 @@ def build_project_map() -> dict:
         print(f"[DIAG] Final path for Story {issue.iid}: {relative_filepath}")
 
         # Write file and create node for the story
-        full_filepath = os.path.join(DATA_DIR, relative_filepath)
+        full_filepath = os.path.join(config.DATA_DIR, relative_filepath)
         gitlab_managed_files.add(full_filepath)
         os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f:
@@ -310,9 +300,9 @@ def upload_artifacts_to_gitlab(project_map: dict) -> dict:
     project = None
     try:
         gl = get_gitlab_client()
-        project_id = os.getenv("GITLAB_PROJECT_ID")
+        project_id = os.getenv("GGW_GITLAB_PROJECT_ID")
         if not project_id:
-            raise ValueError("Error: GITLAB_PROJECT_ID must be set.")
+            raise ValueError("Error: GGW_GITLAB_PROJECT_ID must be set.")
         project = gl.projects.get(project_id)
     except (ValueError, ConnectionError) as e:
         return {"status": "error", "message": str(e)}
