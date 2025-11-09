@@ -9,9 +9,6 @@ import re
 import yaml
 import shutil
 from gemini_gitlab_workflow import config
-from dotenv import load_dotenv
-
-load_dotenv()
 
 AGILE_HIERARCHY_MAP = {
     "Backbone": "backbones",

@@ -1,8 +1,4 @@
 import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file in the current working directory
-load_dotenv()
 
 # --- Centralized Path and Configuration Definitions ---
 

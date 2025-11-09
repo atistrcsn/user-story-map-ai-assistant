@@ -6,10 +6,6 @@ import yaml
 import shutil
 import time
 from gemini_gitlab_workflow import config
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 def _slugify(text):
     """Convert text to a URL-friendly slug."""
