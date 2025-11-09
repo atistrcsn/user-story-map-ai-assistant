@@ -32,6 +32,7 @@ run_tests:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+      junit: coverage.xml
 
 build_project:
   stage: build
