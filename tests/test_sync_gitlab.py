@@ -259,7 +259,7 @@ def test_main_sync_process(
     # Configure mocks
     mock_config.GITLAB_URL = "http://mock-gitlab.com"
     mock_config.PRIVATE_TOKEN = "mock-token"
-    mock_config.PROJECT_PATH = "mock-group/mock-project"
+    mock_config.PROJECT_PATH = "12345"
 
     mock_path_exists.return_value = True  # Simulate gitlab_data dir exists for cleanup
 
@@ -320,8 +320,8 @@ def test_main_sync_process(
     main()
 
     # Assertions
-    mock_rmtree.assert_called_once_with("/gitlab_data")
-    mock_makedirs.assert_any_call("/gitlab_data", exist_ok=True)
+    mock_rmtree.assert_called_once_with(mock_config.DATA_DIR)
+    mock_makedirs.assert_any_call(mock_config.DATA_DIR, exist_ok=True)
 
     # Verify GitLab API calls
     mock_gitlab_class.assert_called_once_with(
@@ -332,7 +332,7 @@ def test_main_sync_process(
 
     # Verify file writing operations, paths and content
     expected_filepath_1 = os.path.join(
-        "/gitlab_data",
+        mock_config.DATA_DIR,
         "backbones", "feature-a",
         "epics", "test-issue-1",
         "test-issue-1.md"
@@ -340,7 +340,7 @@ def test_main_sync_process(
     expected_content_1 = _generate_markdown_content(mock_issue_1)
 
     expected_filepath_2 = os.path.join(
-        "/gitlab_data",
+        mock_config.DATA_DIR,
         "stories", "test-issue-2",
         "tasks", "subtask-for-epic",
         "test-issue-2.md"
@@ -348,7 +348,7 @@ def test_main_sync_process(
     expected_content_2 = _generate_markdown_content(mock_issue_2)
 
     expected_filepath_3 = os.path.join(
-        "/gitlab_data",
+        mock_config.DATA_DIR,
         "_unassigned",
         "unassigned-issue.md"
     )

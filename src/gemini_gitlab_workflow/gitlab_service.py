@@ -6,6 +6,7 @@ import yaml
 import shutil
 import time
 from gemini_gitlab_workflow import config
+from gemini_gitlab_workflow.config import TIMESTAMPS_CACHE_PATH
 
 def _slugify(text):
     """Convert text to a URL-friendly slug."""

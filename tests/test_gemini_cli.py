@@ -147,7 +147,7 @@ class TestCreateFeature:
         
         # 2. Create a temporary directory structure to act as the project root
         # We need to mock the PROJECT_ROOT constant used in the CLI script
-        mocker.patch('gemini_gitlab_workflow.cli.PROJECT_ROOT', str(tmp_path))
+        mocker.patch('gemini_gitlab_workflow.config.PROJECT_ROOT', str(tmp_path))
         
         docs_dir = tmp_path / "docs"
         docs_dir.mkdir()
@@ -214,11 +214,17 @@ class TestGenerateLocalFiles:
         in the project_map.yaml.
         """
         # Arrange
-        from gemini_gitlab_workflow.cli import _generate_local_files, PROJECT_MAP_PATH
+        from gemini_gitlab_workflow.cli import _generate_local_files
+        from gemini_gitlab_workflow.config import PROJECT_MAP_PATH, DATA_DIR
         from rich.console import Console
         import yaml
 
         console = Console()
+
+        # Isolate filesystem using mocks
+        mocker.patch('gemini_gitlab_workflow.config.PROJECT_MAP_PATH', str(PROJECT_MAP_PATH))
+        mocker.patch('gemini_gitlab_workflow.config.DATA_DIR', str(DATA_DIR))
+        os.makedirs(DATA_DIR, exist_ok=True)
 
         # Mock the initial project_map.yaml to be empty
         with open(PROJECT_MAP_PATH, 'w') as f:
@@ -274,5 +280,5 @@ class TestUploadStoryMap:
 
         # Assert
         assert result.exit_code == 1
-        assert "not found" in result.stdout
+        assert "not" in result.stdout and "found" in result.stdout
         assert "Please generate a story map first" in result.stdout

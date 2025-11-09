@@ -132,26 +132,20 @@ def mock_gitlab_project(mocker, mock_issue_backbone, mock_issue_epic, mock_issue
     
     return mock_project
 
-@pytest.fixture
-def mock_cache_paths(mocker, tmp_path):
-    """Fixture to patch cache path constants to use a temporary directory."""
-    cache_file_path = tmp_path / "timestamps.json"
-    mocker.patch('gemini_gitlab_workflow.gitlab_service.CACHE_DIR', str(tmp_path))
-    mocker.patch('gemini_gitlab_workflow.gitlab_service.TIMESTAMPS_CACHE_PATH', str(cache_file_path))
-    return cache_file_path
+from gemini_gitlab_workflow import config
 
 
 class TestSmartSyncLogic:
 
-    def test_smart_sync_first_run(self, mock_gitlab_project, mock_cache_paths):
-        cache_file = mock_cache_paths
+    def test_smart_sync_first_run(self, mock_gitlab_project):
+        cache_file = config.TIMESTAMPS_CACHE_PATH
         result = smart_sync()
         assert result["status"] == "success"
         assert result["updated_count"] == 6 # All issues are new
-        assert cache_file.exists()
+        assert os.path.exists(cache_file)
 
-    def test_smart_sync_no_changes(self, mock_gitlab_project, mock_cache_paths):
-        cache_file = mock_cache_paths
+    def test_smart_sync_no_changes(self, mock_gitlab_project):
+        cache_file = config.TIMESTAMPS_CACHE_PATH
         up_to_date_timestamps = {
             "100": "2025-11-05T10:00:00.000Z",
             "101": "2025-11-05T11:00:00.000Z",
@@ -167,8 +161,8 @@ class TestSmartSyncLogic:
         assert result["updated_count"] == 0
         mock_gitlab_project.issues.get.assert_not_called()
 
-    def test_smart_sync_with_updates(self, mock_gitlab_project, mock_cache_paths):
-        cache_file = mock_cache_paths
+    def test_smart_sync_with_updates(self, mock_gitlab_project):
+        cache_file = config.TIMESTAMPS_CACHE_PATH
         stale_timestamps = {
             "100": "2025-11-04T00:00:00.000Z", # Old timestamp
             "101": "2025-11-05T11:00:00.000Z",
@@ -184,8 +178,8 @@ class TestSmartSyncLogic:
         assert result["updated_count"] == 1
         mock_gitlab_project.issues.get.assert_called_once_with(100)
 
-    def test_smart_sync_corrupted_cache(self, mock_gitlab_project, mock_cache_paths):
-        cache_file = mock_cache_paths
+    def test_smart_sync_corrupted_cache(self, mock_gitlab_project):
+        cache_file = config.TIMESTAMPS_CACHE_PATH
         with open(cache_file, 'w') as f:
             f.write("this is not json")
         result = smart_sync()
@@ -478,9 +472,9 @@ class TestGitlabServiceErrors:
         """
         # Arrange
         # Unset environment variables for the duration of this test
-        monkeypatch.delenv("GITLAB_URL", raising=False)
-        monkeypatch.delenv("GITLAB_PRIVATE_TOKEN", raising=False)
-        monkeypatch.delenv("GITLAB_PROJECT_ID", raising=False)
+        monkeypatch.delenv("GGW_GITLAB_URL", raising=False)
+        monkeypatch.delenv("GGW_GITLAB_PRIVATE_TOKEN", raising=False)
+        monkeypatch.delenv("GGW_GITLAB_PROJECT_ID", raising=False)
 
         # Act
         sync_result = smart_sync()
@@ -489,10 +483,10 @@ class TestGitlabServiceErrors:
 
         # Assert
         assert sync_result["status"] == "error"
-        assert "GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set" in sync_result["message"]
+        assert "GGW_GITLAB_URL and GGW_GITLAB_PRIVATE_TOKEN must be set" in sync_result["message"]
 
         assert build_map_result["status"] == "error"
-        assert "GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set" in build_map_result["message"]
+        assert "GGW_GITLAB_URL and GGW_GITLAB_PRIVATE_TOKEN must be set" in build_map_result["message"]
         
         assert upload_result["status"] == "error"
-        assert "GITLAB_URL and GITLAB_PRIVATE_TOKEN must be set" in upload_result["message"]
+        assert "GGW_GITLAB_URL and GGW_GITLAB_PRIVATE_TOKEN must be set" in upload_result["message"]
