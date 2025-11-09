@@ -95,6 +95,22 @@ ggw upload story-map
 
 ---
 
+## Building the Binary
+
+To create a standalone, single-file executable that can be run without a Python installation, you can use PyInstaller directly.
+
+1.  **Install development dependencies (if you haven't already):**
+    ```bash
+    uv pip install -e .[test]
+    ```
+
+2.  **Run the PyInstaller command:**
+    ```bash
+    uv run pyinstaller --name ggw --onefile --clean src/gemini_gitlab_workflow/cli.py
+    ```
+
+This command will run PyInstaller and create a `ggw` executable inside the `dist/` directory. You can then copy this file to any location (e.g., `/usr/local/bin`) and run it directly.
+
 ## Running Tests
 
 To run the automated tests for the `gemini-gitlab-workflow` package itself, use the following command from its root directory:
