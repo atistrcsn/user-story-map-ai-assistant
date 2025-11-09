@@ -6,6 +6,7 @@
         "ms-python.isort",
         "ms-python.black-formatter",
         "ms-python.vscode-pylance",
-        "the0807.uv-toolkit"
+        "the0807.uv-toolkit",
+        "redhat.vscode-xml"
     ]
 }

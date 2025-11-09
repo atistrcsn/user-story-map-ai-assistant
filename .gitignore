@@ -88,3 +88,5 @@ build/
 /gitlab_data/
 project_map.yaml
 .coverage
+report.xml
+coverage.xml

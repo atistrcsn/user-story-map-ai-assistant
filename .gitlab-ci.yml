@@ -26,13 +26,13 @@ run_tests:
   stage: test
   script:
     - uv sync --all-extras
-    - uv run pytest --cov=src/gemini_gitlab_workflow --cov-report=xml:coverage.xml tests/
+    - uv run pytest --cov=src/gemini_gitlab_workflow --cov-report=xml:coverage.xml --junitxml=report.xml tests/
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
-      junit: coverage.xml
+      junit: report.xml
 
 build_project:
   stage: build
