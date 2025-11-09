@@ -34,16 +34,16 @@ This document outlines the detailed, step-by-step plan for refactoring the Pytho
 
 ## Phase 2: Create an Installable Python Package
 
-**Status:** [PLANNED]
+**Status:** [DONE]
 
 **Goal:** Make the project a formal, installable Python package with a command-line entry point (`ggw`).
 
-- [ ] Enhance `pyproject.toml` with project metadata (version, author, description).
-- [ ] Define a command-line script entry point in `pyproject.toml` (e.g., `ggw = "gemini_gitlab_workflow.cli:app"`).
-- [ ] Rename `gemini_cli.py` to `cli.py` for clarity.
-- [ ] Create a `setup.sh` script to install the package in editable mode using `uv`.
-- [ ] Test the installation and verify that the `ggw` command is available and functional.
-- [ ] Update `README.md` with new installation and usage instructions.
+- [x] Enhance `pyproject.toml` with project metadata (version, author, description).
+- [x] Define a command-line script entry point in `pyproject.toml` (e.g., `ggw = "gemini_gitlab_workflow.cli:app"`).
+- [x] Rename `gemini_cli.py` to `cli.py` for clarity.
+- [x] Create a `setup.sh` script to install the package in editable mode using `uv`.
+- [x] Test the installation and verify that the `ggw` command is available and functional.
+- [x] Update `README.md` with new installation and usage instructions.
 
 ---
 
