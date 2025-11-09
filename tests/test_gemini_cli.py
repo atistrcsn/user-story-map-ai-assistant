@@ -6,7 +6,7 @@ import json
 from unittest.mock import MagicMock
 
 # The CLI app to be tested
-from gemini_gitlab_workflow.gemini_cli import app
+from gemini_gitlab_workflow.cli import app
 # The service layer to be mocked
 from gemini_gitlab_workflow import gitlab_service
 from gemini_gitlab_workflow import ai_service
@@ -122,7 +122,7 @@ class TestCreateFeature:
         mocker.patch('typer.confirm', side_effect=typer.Abort)
         
         # Mock the function that would be called after approval to check it's NOT called
-        mock_generate_files = mocker.patch('gemini_gitlab_workflow.gemini_cli._generate_local_files')
+        mock_generate_files = mocker.patch('gemini_gitlab_workflow.cli._generate_local_files')
 
         # Act
         result = runner.invoke(app, ["create-feature", "test feature"])
@@ -147,7 +147,7 @@ class TestCreateFeature:
         
         # 2. Create a temporary directory structure to act as the project root
         # We need to mock the PROJECT_ROOT constant used in the CLI script
-        mocker.patch('gemini_gitlab_workflow.gemini_cli.PROJECT_ROOT', str(tmp_path))
+        mocker.patch('gemini_gitlab_workflow.cli.PROJECT_ROOT', str(tmp_path))
         
         docs_dir = tmp_path / "docs"
         docs_dir.mkdir()
@@ -214,7 +214,7 @@ class TestGenerateLocalFiles:
         in the project_map.yaml.
         """
         # Arrange
-        from gemini_gitlab_workflow.gemini_cli import _generate_local_files, PROJECT_MAP_PATH
+        from gemini_gitlab_workflow.cli import _generate_local_files, PROJECT_MAP_PATH
         from rich.console import Console
         import yaml
 

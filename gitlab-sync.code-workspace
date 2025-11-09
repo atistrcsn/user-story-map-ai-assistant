@@ -3,10 +3,6 @@
         {
             "name": "Project Root",
             "path": "."
-        },
-        {
-            "name": "Python Scripts",
-            "path": "scripts"
         }
     ],
     "settings": {
