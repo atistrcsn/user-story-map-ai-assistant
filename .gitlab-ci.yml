@@ -47,11 +47,11 @@ publish_latest:
   image: curlimages/curl:latest
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  script:
-    - echo "Uploading latest build from branch $CI_COMMIT_BRANCH to the Generic Package Registry..."
-    - curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file dist/ggw "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/ggw/${CI_COMMIT_SHORT_SHA}/ggw"
-    - echo "Uploaded package version ${CI_COMMIT_SHORT_SHA}."
-    - echo "The 'latest' version can be downloaded from: ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/ggw/latest/ggw"
+  script: |
+    echo "Uploading latest build from branch $CI_COMMIT_BRANCH to the Generic Package Registry..."
+    curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file dist/ggw "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/ggw/${CI_COMMIT_SHORT_SHA}/ggw"
+    echo "Uploaded package version ${CI_COMMIT_SHORT_SHA}."
+    echo "The 'latest' version can be downloaded from: ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/ggw/latest/ggw"
   dependencies:
     - build_project
 
