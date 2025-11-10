@@ -7,6 +7,7 @@ import os
 import glob
 from gemini_gitlab_workflow import gitlab_service
 from gemini_gitlab_workflow import ai_service
+from gemini_gitlab_workflow.sanitizer import anonymize_text, deanonymize_text
 from rich.console import Console
 from rich.pretty import pprint
 import re
@@ -287,9 +288,29 @@ def create_feature(
                             "state": node.get("state")
                         })
 
+        # Anonymize context before sending to AI
+        anonymized_feature_description = anonymize_text(feature_description)
+        anonymized_context_content = anonymize_text(context_content)
+        
+        anonymized_existing_issues = []
+        for issue in existing_issues_context:
+            anonymized_issue = {
+                "title": anonymize_text(issue.get("title", "")),
+                "labels": [anonymize_text(label) for label in issue.get("labels", [])],
+                "state": issue.get("state")
+            }
+            anonymized_existing_issues.append(anonymized_issue)
+
         plan = ai_service.generate_implementation_plan(
-            feature_description, context_content, existing_issues_context, mock_ai
+            anonymized_feature_description, anonymized_context_content, anonymized_existing_issues, mock_ai
         )
+
+    # Deanonymize the response from AI
+    if plan and plan.get("proposed_issues"):
+        for issue in plan["proposed_issues"]:
+            issue["title"] = deanonymize_text(issue.get("title", ""))
+            issue["description"] = deanonymize_text(issue.get("description", ""))
+            issue["labels"] = [deanonymize_text(label) for label in issue.get("labels", [])]
 
     console.print("\n[bold green]✓ AI generated the following implementation plan:[/bold green]")
     

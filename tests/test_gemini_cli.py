@@ -282,3 +282,42 @@ class TestUploadStoryMap:
         assert result.exit_code == 1
         assert "not" in result.stdout and "found" in result.stdout
         assert "Please generate a story map first" in result.stdout
+
+
+class TestAnonymization:
+
+    def test_anonymization_flow(self, mocker):
+        """
+        Tests that the create-feature command correctly calls the anonymize and
+        deanonymize functions at the right points in the workflow.
+        """
+        # Arrange
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.smart_sync')
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={"status": "success", "map_data": {}})
+        mocker.patch('gemini_gitlab_workflow.ai_service.get_relevant_context_files', return_value=[])
+        
+        mock_plan = {
+            "proposed_issues": [
+                {"id": "NEW_1", "title": "Anonymized Title", "description": "Anonymized description.", "labels": ["Type::Story", "Anonymized::Label"], "dependencies": {}}
+            ]
+        }
+        mocker.patch('gemini_gitlab_workflow.ai_service.generate_implementation_plan', return_value=mock_plan)
+        mocker.patch('typer.confirm', return_value=True)
+        mocker.patch('gemini_gitlab_workflow.cli._generate_local_files')
+
+        mock_anonymize = mocker.patch('gemini_gitlab_workflow.cli.anonymize_text', side_effect=lambda x: f"anon_{x}")
+        mock_deanonymize = mocker.patch('gemini_gitlab_workflow.cli.deanonymize_text', side_effect=lambda x: x.replace("Anonymized", "Deanonymized"))
+
+        # Act
+        result = runner.invoke(app, ["create-feature", "test feature description"])
+
+        # Assert
+        assert result.exit_code == 0
+        
+        # Check that anonymization was called on the inputs to the AI
+        mock_anonymize.assert_any_call("test feature description")
+        
+        # Check that deanonymization was called on the outputs from the AI
+        mock_deanonymize.assert_any_call("Anonymized Title")
+        mock_deanonymize.assert_any_call("Anonymized description.")
+        mock_deanonymize.assert_any_call("Anonymized::Label")
