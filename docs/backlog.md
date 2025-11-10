@@ -140,73 +140,11 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 5.  **Documentation:**
     *   Upon completion, activate the "Documentation Reconciliation Protocol" to update all relevant documents with the status of this task.
-
-## Implement Real AI API Calls
-
-**Status:** DONE
-
-**Description:** Replace the mock AI calls in `ai_service.py` with actual calls to the Google Gemini API using the `google-generativeai` library. This will bring the AI-assisted feature to life.
-
-**Implementation Plan:**
-
-1.  **Prerequisites:**
-    *   Add `google-generativeai` to the `dependencies` in `scripts/pyproject.toml`.
-    *   Install the new dependency by running `uv pip install -r scripts/pyproject.toml`.
-    *   Ensure the `GOOGLE_API_KEY` is set in the `.env` file in the project root.
-
-2.  **Test-Driven Refactoring:**
-    *   In `scripts/tests/test_ai_service.py`, change the mock target from our internal `call_google_gemini_api` to the external library's method: `@patch('google.generativeai.GenerativeModel.generate_content')`.
-    *   Update the mock return value to be an object with a `.text` attribute, simulating the library's response object.
-    *   Run `pytest` to confirm the tests fail (TDD Red phase).
-
-3.  **Core Implementation (`ai_service.py`):**
-    *   Add `import google.generativeai as genai` and `import os`.
-    *   Configure the library at the module level using `genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))`.
-    *   Rewrite the `call_google_gemini_api` function to:
-        *   Instantiate a `genai.GenerativeModel`.
-        *   Call the `model.generate_content()` method with the prompt.
-        *   Include `try...except` block for robust error handling.
-        *   Return the `response.text`.
-
-4.  **Verification:**
-    *   Run `pytest` again to confirm all tests now pass (TDD Green phase).
-    *   Perform a manual, end-to-end test by running the `create-feature` command to see a real AI-generated response.
-
----
-
-### Refactor Scripts into a Production-Ready Python Package
-
-*   **Status:** `[PLANNED]`
-*   **Description:** Refactor the collection of Python scripts into a formal, installable Python package named `gemini-gitlab-workflow`. The goal is to create a robust, maintainable, and extensible command-line tool (`ggw`) for managing the GitLab workflow, and to prepare it for deep integration as a custom tool within the Gemini CLI.
-*   **Implementation Plan:**
-    *   `[PLANNED]` Prepare src-layout as best practice
-    *   `[PLANNED]` Structure the project as a standard Python package with `pyproject.toml`.
-    *   `[PLANNED]` Create a centralized, hierarchical configuration system (`config.py`).
-    *   `[PLANNED]` Develop a user-friendly Command-Line Interface (CLI) using Typer (`cli.py`).
-    *   `[PLANNED]` Modularize the core logic into separate services (`gitlab_service.py`, `ai_service.py`).
-    *   `[PLANNED]` Create a setup script (`setup.sh`) for easy installation and configuration.
-    *   `[PLANNED]` Integrate the package's functionality as a custom tool for the Gemini CLI (`gemini_tools.py`).
-    *   `[PLANNED]` Write comprehensive unit and integration tests for the new package structure.
-*   **Testing Ideas:**
-    *   Unit test individual functions in `gitlab_service` and `ai_service`.
-    *   Test CLI commands (`ggw create-feature`, `ggw sync map`, etc.) with mocked APIs.
-    *   End-to-end test: run the `setup.sh` script and then invoke the custom tool from within a Gemini CLI session.
-
 ---
 
 ## Future Features / Enhancements:
 
 ---
-
-## Tasks and Incidents
-
-*   **INC-001: Fix missing `description` field in `project_map.yaml`**
-    *   **Status:** [DONE]
-    *   **Description:** The `_generate_local_files` function in `gemini_cli.py` did not add the `description` field to the new issue nodes created in `project_map.yaml`. This caused empty descriptions to be uploaded. The bug has been fixed, and the field is now correctly included in the project map.
-
-*   **INC-002: Upload logic incorrectly attempted to recreate existing links**
-    *   **Status:** [DONE]
-    *   **Description:** The `upload_artifacts_to_gitlab` function in `gitlab_service.py` attempted to create all `contains` type links in `project_map.yaml`, including those that already existed. This caused a `409 Conflict` API error. The logic has been fixed so that the upload now only creates links belonging to newly generated issues.
 
 ### **Proposed Backlog Item**
 
@@ -224,16 +162,96 @@ This task aims to introduce a "filter and re-substitution" mechanism that anonym
 
 1.  **Outgoing Data Redaction (Prompt Anonymization):**
     *   Before `gemini_cli` sends the prompt to `ai_service`, a new function must scan the entire context text.
-    *   All occurrences of `GITLAB_URL` and `GITLAB_PROJECT_ID` must be replaced with a generic, non-identifiable placeholder (e.g., `[PROJECT_URL]` and `[PROJECT_ID]`).
+    *   For example, all occurrences of `GITLAB_URL` and `GITLAB_PROJECT_ID` etc. must be replaced with a generic, non-identifiable placeholder (e.g., `[PROJECT_URL]` and `[PROJECT_ID]`).
     *   Only this anonymized context can be passed to the AI.
 
 2.  **Incoming Data Re-substitution (Response De-anonymization):**
     *   After `ai_service` returns the JSON-formatted, generated story map, a new function must scan the `description` field of all items in the `proposed_issues` list.
-    *   All occurrences of the `[PROJECT_URL]` and `[PROJECT_ID]` placeholders must be replaced with the original values from environment variables.
+    *   All occurrences of the `[PROJECT_URL]` and `[PROJECT_ID]` etc. placeholders must be replaced with the original values from environment variables.
     *   The `_generate_local_files` and subsequent `upload_artifacts_to_gitlab` functions will then receive this "restored" data structure.
 
 **Acceptance Criteria:**
 *   Prompts sent to the AI provider are guaranteed not to contain the specific GitLab URL or Project ID.
-*   Any `[PROJECT_URL]` and `[PROJECT_ID]` placeholders potentially returned in AI-generated issue descriptions are correctly restored to their original values.
+*   Any `[PROJECT_URL]` and `[PROJECT_ID]`etc. placeholders potentially returned in AI-generated issue descriptions are correctly restored to their original values.
 *   The process must be completely transparent to the user.
 *   New unit tests will be introduced to verify both the anonymization and de-anonymization logic.
+
+---
+
+## Future Features / Enhancements:
+
+### Proposed Backlog Item
+
+**Title:** Feature: Manual End-to-End Testing
+
+**Status:** [PLANNED]
+
+**Description:** Manually test the entire `ggw` project with a sample project, focusing on user-side intensive testing.
+
+**Implementation Plan:**
+*   Set up a new sample GitLab project.
+*   Run `ggw` commands against the sample project.
+*   Document any issues or unexpected behavior.
+
+**Testing Ideas:**
+*   Verify that `sync` command correctly fetches issues.
+*   Verify that `create-feature` command generates correct story maps.
+*   Verify that `upload` command correctly creates issues and links in GitLab.
+
+---
+
+### Proposed Backlog Item
+
+**Title:** Enhancement: Integrate Coverage Report into GitLab Pipeline
+
+**Status:** [PLANNED]
+
+**Description:** Investigate and implement a solution to include the code coverage report in the GitLab pipeline's uploaded test reports, if feasible.
+
+**Implementation Plan:**
+*   Research GitLab CI/CD documentation for coverage report integration.
+*   Modify `.gitlab-ci.yml` to generate and upload coverage reports.
+*   Verify the report appears in GitLab.
+
+**Testing Ideas:**
+*   Run pipeline and check for coverage report in GitLab UI.
+
+---
+
+### Proposed Backlog Item
+
+**Title:** Enhancement: Pipeline Cache Optimization
+
+**Status:** [PLANNED]
+
+**Description:** Optimize the GitLab CI/CD pipeline to ensure effective use of caching for faster execution.
+
+**Implementation Plan:**
+*   Review existing `.gitlab-ci.yml` for cache configurations.
+*   Identify potential areas for caching (e.g., `uv` dependencies).
+*   Implement or adjust cache settings.
+*   Monitor pipeline execution times to confirm improvements.
+
+**Testing Ideas:**
+*   Run pipeline multiple times and compare execution times with and without cache.
+
+---
+
+### Proposed Backlog Item
+
+**Title:** Enhancement: Conditional Pipeline Triggering for Documentation Changes
+
+**Status:** [PLANNED]
+
+**Description:** Implement a mechanism in the GitLab CI/CD pipeline to prevent unnecessary test and build pipeline runs when only documentation or non-code files have been modified.
+
+**Implementation Plan:**
+*   Analyze `.gitlab-ci.yml` to identify current pipeline triggers.
+*   Research GitLab CI/CD `rules:changes` or similar features to conditionally run jobs based on file changes.
+*   Investigate using a specific flag in the commit message (e.g., `[skip ci]`, `[docs]`) as an alternative or supplementary method, and evaluate this against best practices.
+*   Define rules to skip test and build stages if changes are limited to `docs/` directory or other specified non-code files.
+*   Implement the changes in `.gitlab-ci.yml`.
+
+**Testing Ideas:**
+*   Make a change only in a documentation file and verify that the test and build stages are skipped.
+*   Make a change in a code file and verify that the full pipeline runs.
