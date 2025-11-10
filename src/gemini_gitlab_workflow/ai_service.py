@@ -2,6 +2,8 @@ import json
 import os
 import re
 import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from gemini_gitlab_workflow import config
 
 # Configure the generative AI client
 try:
@@ -9,6 +11,26 @@ try:
 except Exception as e:
     print(f"Error configuring Google Gemini API: {e}")
     genai = None
+
+# Define safety settings to block harmful content
+safety_settings = [
+    {
+        "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
+        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+        "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        "threshold": HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+]
 
 def _extract_json_from_response(text: str) -> str:
     """Extracts a JSON object or array from a string, ignoring Markdown fences."""
@@ -18,15 +40,15 @@ def _extract_json_from_response(text: str) -> str:
         return match.group(0)
     return "" # Return empty string if no JSON found
 
-def call_google_gemini_api(prompt: str, model_name: str = 'gemini-2.5-pro') -> str:
-    """Calls the Google Gemini API with a given prompt."""
+def call_google_gemini_api(messages: list, model_name: str) -> str:
+    """Calls the Google Gemini API with a structured list of messages."""
     if not genai:
         print("Error: Google Gemini API client is not configured.")
         return ''
     try:
-        model = genai.GenerativeModel(model_name)
+        model = genai.GenerativeModel(model_name, safety_settings=safety_settings)
         config = genai.GenerationConfig(temperature=0)
-        response = model.generate_content(prompt, generation_config=config)
+        response = model.generate_content(messages, generation_config=config)
         return response.text
     except Exception as e:
         print(f"An error occurred while calling the Gemini API: {e}")
@@ -38,20 +60,26 @@ def get_relevant_context_files(user_prompt: str, context_sources: list[dict], mo
         print("--- AI API CALL (MOCKED for get_relevant_context_files) ---")
         return ["docs/architecture-design-document.md", "docs/feature-ai-story-map-creation.md"]
 
-    # ... (prompt construction remains the same)
-    prompt = f"""
+    system_prompt = """
 CRITICAL: Your response must be ONLY a raw JSON list of strings, without any Markdown formatting or other text.
 
 Feladat: Válaszd ki a legrelevánsabb kontextus fájlokat egy új szoftverfejlesztési feladathoz.
 Például: ["docs/architecture.md", "gitlab_data/.../issue-101.md"]
-
+"""
+    
+    user_content = f"""
 Felhasználói kérés: "{user_prompt}"
 
 Választható kontextus fájlok:
 {os.linesep.join([f'{i}. Fájl: {s["path"]}, Leírás: {s["summary"]}' for i, s in enumerate(context_sources, 1)])}
 """
 
-    raw_response = call_google_gemini_api(prompt.strip(), model_name='gemini-2.5-flash-lite')
+    messages = [
+        {'role': 'model', 'parts': [system_prompt.strip()]},
+        {'role': 'user', 'parts': [user_content.strip()]}
+    ]
+
+    raw_response = call_google_gemini_api(messages, model_name=config.GEMINI_FAST_MODEL)
     if raw_response is None:
         return None # Propagate the error signal
 
@@ -79,7 +107,7 @@ def generate_implementation_plan(user_prompt: str, context_content: str, existin
         f"- Title: \"{issue['title']}\", Labels: {issue['labels']}, State: \"{issue.get('state', 'unknown')}\"" for issue in existing_issues
     ) if existing_issues else "N/A"
 
-    prompt = f"""
+    system_prompt = f"""
 You are a **Product Owner**. Your primary role is to translate high-level business requirements into clear, functional user stories.
 
 **CRITICAL CONTEXT:**
@@ -123,7 +151,12 @@ Based on the "User Request", create a plan of user stories. Before you begin, ca
     - "dependencies": An optional object for functional dependencies.
 8.  **Define Dependencies:** After proposing all issues, analyze them. If implementing one issue is a logical prerequisite for another, you **MUST** define this relationship. For example, if NEW_2 must be done before NEW_3, add this to NEW_3: `"dependencies": {{"is_blocked_by": ["NEW_2"]}}`.
 9.  **CRITICAL DEPENDENCY RULE:** You MUST NOT propose a dependency on any issue that has a state of 'closed'. Closed issues are completed and cannot block new work. Only issues with a state of 'opened' can be considered as blockers.
+10. **LABEL INHERITANCE IS MANDATORY: All Story issues MUST inherit BOTH the `Epic::` and the `Backbone::` labels from their parent Epic, without exception.**
 
+Generate the business-functional user story map now.
+"""
+    
+    user_content = f"""
 **User Request:** "{user_prompt}"
 
 **Provided Context:**
@@ -135,13 +168,14 @@ Based on the "User Request", create a plan of user stories. Before you begin, ca
 ---
 {existing_issues_str}
 ---
-
-**LABEL INHERITANCE IS MANDATORY: All Story issues MUST inherit BOTH the `Epic::` and the `Backbone::` labels from their parent Epic, without exception.**
-
-Generate the business-functional user story map now.
 """
 
-    raw_response = call_google_gemini_api(prompt.strip(), model_name='gemini-2.5-pro')
+    messages = [
+        {'role': 'model', 'parts': [system_prompt.strip()]},
+        {'role': 'user', 'parts': [user_content.strip()]}
+    ]
+
+    raw_response = call_google_gemini_api(messages, model_name=config.GEMINI_SMART_MODEL)
     if raw_response is None:
         return None # Propagate the error signal
 
