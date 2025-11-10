@@ -2,6 +2,8 @@
 
 This project is an intelligent CLI tool designed to streamline agile software development workflows using GitLab. It leverages AI to analyze high-level feature requests, break them down into epics and stories, and manage the synchronization between a local file-based representation and a GitLab project.
 
+[![CI/CD Pipeline](https://github.com/atistrcsn/user-story-map-ai-assistant/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/atistrcsn/user-story-map-ai-assistant/actions/workflows/ci.yml)
+
 ## Core Features
 
 *   **AI-Assisted Story Map Generation:** Provide a high-level feature description, and the AI will analyze your project's context to propose a structured plan of epics and stories.
