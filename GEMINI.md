@@ -75,14 +75,14 @@ All documentation within this `GEMINI.md` file must be written in English to ens
 
 ## File and Directory Structure Convention
 
-To maintain a clean and portable project structure, all generated files and directories (artifacts, caches, data files) **MUST** be located in the **project root**. The project root is determined dynamically at runtime, making the entire script portable to other environments. The `/scripts` directory must contain only source code.
+To maintain a clean and portable project structure, all generated files and directories (artifacts, caches, data files) **MUST** be located in the **project root**. The project root is defined as the **current working directory** from which the `ggw` command is executed. This ensures that the tool always operates within the context of the user's target project.
 
-This convention is enforced by dynamically identifying the project root based on the script's location and then constructing absolute paths from it.
+This convention is enforced by using `pathlib.Path.cwd()` to dynamically identify the project root at runtime.
 
-- **Project Root:** Determined dynamically (e.g., `/workspaces/`)
-- **Generated Data:** `[Project Root]/gitlab_data/` (e.g., `/workspaces/gitlab_data/`)
-- **Generated Cache:** `[Project Root]/.gemini_cache/` (e.g., `/workspaces/.gemini_cache/`)
-- **Generated Map:** `[Project Root]/project_map.yaml` (e.g., `/workspaces/project_map.yaml`)
+- **Project Root:** The current working directory (e.g., `/home/user/my-gitlab-project/`)
+- **Generated Data:** `[Project Root]/gitlab_data/`
+- **Generated Cache:** `[Project Root]/.gemini_cache/`
+- **Generated Map:** `[Project Root]/project_map.yaml`
 
 All scripts that create or read these files must adhere to this principle to ensure they work correctly regardless of the execution directory.
 

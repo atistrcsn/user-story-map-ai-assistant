@@ -8,6 +8,7 @@ import os
 import re
 import yaml
 import shutil
+from pathlib import Path
 from gemini_gitlab_workflow import config
 
 AGILE_HIERARCHY_MAP = {
@@ -24,9 +25,9 @@ def _slugify(text):
     text = text.strip('-') # Remove leading/trailing hyphens
     return text
 
-def _get_issue_filepath(issue, base_output_dir):
+def _get_issue_filepath(issue, base_output_dir: Path) -> Path:
     """Determines the file path for an issue based on its labels and hierarchy."""
-    path_parts = [base_output_dir]
+    path = base_output_dir
     issue_labels = set(issue.labels)
 
     # Determine hierarchy based on labels
@@ -46,7 +47,7 @@ def _get_issue_filepath(issue, base_output_dir):
     
     # If no hierarchy labels are found, place in _unassigned directory
     if not hierarchy_levels:
-        path_parts.append("_unassigned")
+        path /= "_unassigned"
     else:
         # Sort hierarchy levels to ensure consistent path order (e.g., Backbone before Epic)
         # This assumes AGILE_HIERARCHY_MAP keys are ordered correctly or we define an explicit order
@@ -54,12 +55,12 @@ def _get_issue_filepath(issue, base_output_dir):
         hierarchy_levels.sort(key=lambda x: defined_order.index(x[0]) if x[0] in defined_order else len(defined_order))
 
         for _, dir_name, label_value in hierarchy_levels:
-            path_parts.append(dir_name)
-            path_parts.append(_slugify(label_value))
+            path /= dir_name
+            path /= _slugify(label_value)
 
     # Add issue title as filename
     filename = f"{_slugify(issue.title)}.md"
-    return os.path.join(*path_parts, filename)
+    return path / filename
 
 def _generate_markdown_content(issue):
     """Generates markdown content for a given GitLab issue."""
@@ -93,10 +94,10 @@ def main():
     print("Sync script starting...")
 
     # Use DATA_DIR from absolute path definitions
-    if os.path.exists(config.DATA_DIR):
+    if config.DATA_DIR.exists():
         shutil.rmtree(config.DATA_DIR)
         print(f"Cleaned up existing {config.DATA_DIR} directory.")
-    os.makedirs(config.DATA_DIR, exist_ok=True)
+    config.DATA_DIR.mkdir(exist_ok=True)
 
     # Initialize GitLab connection
     try:
@@ -125,7 +126,7 @@ def main():
         filepath = _get_issue_filepath(issue, config.DATA_DIR) # Use config.DATA_DIR here
         markdown_content = _generate_markdown_content(issue)
 
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(markdown_content)
         print(f"Wrote issue {issue.iid} to {filepath}")

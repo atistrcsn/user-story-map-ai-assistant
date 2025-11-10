@@ -13,6 +13,7 @@ from rich.pretty import pprint
 import re
 from gemini_gitlab_workflow import config
 import unicodedata
+from pathlib import Path
 
 app = typer.Typer()
 
@@ -22,7 +23,7 @@ def init():
     Initializes the current directory for use with ggw by creating a .env file.
     """
     console = Console()
-    env_path = os.path.join(os.getcwd(), ".env")
+    env_path = config.PROJECT_ROOT / ".env"
 
     if os.path.exists(env_path):
         console.print(f"[bold yellow]Warning:[/] '.env' file already exists at {env_path}. No changes were made.")
@@ -80,7 +81,7 @@ def _get_context_from_project_map() -> list[dict]:
             relative_path = node.get("local_path")
             if relative_path:
                 # Always construct an absolute path
-                path = os.path.join(config.DATA_DIR, relative_path)
+                path = config.DATA_DIR / relative_path
                 sources.append({"path": path, "summary": summary})
         
     return sources
@@ -128,7 +129,7 @@ def _generate_local_files(plan: dict, console: Console):
                 temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
                 if temp_epic_label:
                     new_epic_map[temp_epic_label] = {
-                        "path": os.path.dirname(epic_dir_path_str),
+                        "path": Path(os.path.dirname(epic_dir_path_str)),
                         "id": issue["id"]
                     }
 
@@ -153,7 +154,7 @@ def _generate_local_files(plan: dict, console: Console):
                 parent_epic_id = parent_epic_info["id"]
 
                 story_filename = f"story-{_slugify(title)}.md"
-                relative_filepath = os.path.join(parent_epic_path, story_filename)
+                relative_filepath = parent_epic_path / story_filename
                 console.print(f"[DIAG] Story '{title}' mapped to new Epic path: {relative_filepath}")
                 
                 # CRITICAL FIX: Create the 'contains' link
@@ -163,20 +164,22 @@ def _generate_local_files(plan: dict, console: Console):
 
         # If path wasn't determined above, use the default logic
         if not relative_filepath:
-            relative_filepath = gitlab_service.get_issue_filepath(title, labels)
-        
+            relative_filepath_str = gitlab_service.get_issue_filepath(title, labels)
+            if relative_filepath_str:
+                relative_filepath = Path(relative_filepath_str)
+
         if not relative_filepath: # Fallback for unassigned items
-            relative_filepath = os.path.join("_unassigned", f"{_slugify(title)}.md")
+            relative_filepath = Path("_unassigned") / f"{_slugify(title)}.md"
 
         # Create file and node
         frontmatter = {"iid": temp_id, "title": title, "state": "opened", "labels": labels}
         markdown_content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{issue.get('description', '')}\n"
-        full_filepath = os.path.join(config.DATA_DIR, relative_filepath)
-        os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
+        full_filepath = config.DATA_DIR / relative_filepath
+        full_filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f: f.write(markdown_content)
         console.print(f"  - Created file: {full_filepath}")
 
-        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": relative_filepath, "description": issue.get('description', '')}
+        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": str(relative_filepath), "description": issue.get('description', '')}
         new_nodes.append(new_node)
         
         # Handle dependencies (unchanged)
@@ -249,28 +252,35 @@ def create_feature(
     if relevant_files:
         with console.status("[bold green]Reading content of relevant files...[/bold green]"):
             contents = []
-            for file_path in relevant_files:
-                # --- Robust Path Resolution (v2) ---
-                # This logic correctly handles paths that are already absolute vs. those that are relative.
-                absolute_path = file_path
-                if not os.path.isabs(absolute_path):
-                    absolute_path = os.path.join(config.PROJECT_ROOT, absolute_path)
+            for file_path_str in relevant_files:
+                # --- Robust Path Resolution (v3 using pathlib) ---
+                file_path = Path(file_path_str)
+                
+                # If the path is not absolute, resolve it relative to the project root.
+                if not file_path.is_absolute():
+                    absolute_path = config.PROJECT_ROOT / file_path
+                else:
+                    absolute_path = file_path
 
                 # Security check: ensure the final path is within the project directory.
-                safe_path = os.path.abspath(absolute_path)
-                if not safe_path.startswith(config.PROJECT_ROOT):
-                    console.print(f"[yellow]Warning: Skipping file outside project directory: {file_path}[/yellow]")
-                    continue
+                try:
+                    safe_path = absolute_path.resolve(strict=True)
+                    if not safe_path.is_relative_to(config.PROJECT_ROOT.resolve(strict=True)):
+                        console.print(f"[yellow]Warning: Skipping file outside project directory: {file_path_str}[/yellow]")
+                        continue
+                except (FileNotFoundError, RuntimeError): # RuntimeError for symlink loops
+                     console.print(f"[yellow]Warning: Skipping invalid or non-existent file path: {file_path_str}[/yellow]")
+                     continue
 
                 try:
                     with open(safe_path, 'r', encoding='utf-8') as f:
                         # Use the original file_path for the log message for consistency
-                        contents.append(f"---\nFile: {file_path}\nContent: {f.read()}\n---")
+                        contents.append(f"---\nFile: {file_path_str}\nContent: {f.read()}\n---")
                 except FileNotFoundError:
                     # Use the original file_path in the warning message
-                    console.print(f"[yellow]Warning: Could not find file {file_path}. Skipping.[/yellow]")
+                    console.print(f"[yellow]Warning: Could not find file {file_path_str}. Skipping.[/yellow]")
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not read file {file_path} due to {e}. Skipping.[/yellow]")
+                    console.print(f"[yellow]Warning: Could not read file {file_path_str} due to {e}. Skipping.[/yellow]")
             context_content = "\n".join(contents)
     
     # Step 5: AI Deep Analysis

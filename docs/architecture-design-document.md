@@ -103,7 +103,7 @@ The most significant change is the evolution of the `scripts` folder into a form
 
 ### 7.2. Key Architectural Changes
 
-*   **Centralized Configuration (`config.py`):** A new hierarchical configuration system has been introduced. It loads settings in the following order of precedence: default values -> global user config (`~/.config/gemini_workflows/config.yaml`) -> project-specific config (`.gemini-workflow.yaml`). This eliminates hardcoded paths and secrets, making the tool portable and secure.
+*   **Centralized Configuration (`config.py`):** A new hierarchical configuration system has been introduced. It defines the project's root directory as the current working directory (`pathlib.Path.cwd()`) from which the tool is executed. This ensures all file operations are relative to the user's project, making the tool portable and predictable. It loads settings in the following order of precedence: default values -> global user config (`~/.config/gemini_workflows/config.yaml`) -> project-specific config (`.gemini-workflow.yaml`). This eliminates hardcoded paths and secrets.
 
 *   **Structured Command-Line Interface (`cli.py`):** Built with the `Typer` library, the `ggw` command provides a modern, user-friendly CLI. It is organized into logical subcommands:
     *   `ggw create-feature`: The main AI-driven workflow for planning new features.

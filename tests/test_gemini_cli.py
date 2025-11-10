@@ -146,8 +146,8 @@ class TestCreateFeature:
         mocker.patch('gemini_gitlab_workflow.ai_service.generate_implementation_plan', return_value={"proposed_issues": []}) # No new issues needed for this test
         
         # 2. Create a temporary directory structure to act as the project root
-        # We need to mock the PROJECT_ROOT constant used in the CLI script
-        mocker.patch('gemini_gitlab_workflow.config.PROJECT_ROOT', str(tmp_path))
+        # Mock Path.cwd() to return the temporary path
+        mocker.patch('pathlib.Path.cwd', return_value=tmp_path)
         
         docs_dir = tmp_path / "docs"
         docs_dir.mkdir()
@@ -160,8 +160,8 @@ class TestCreateFeature:
 
         # 4. Mock the AI to return a mix of absolute and relative paths
         mock_relevant_files = [
-            str(docs_dir / "doc1.md"),  # Absolute path
-            "gitlab_data/story1.md"      # Relative path
+            "docs/doc1.md",  # Relative path to tmp_path
+            "gitlab_data/story1.md"      # Relative path to tmp_path
         ]
         mocker.patch('gemini_gitlab_workflow.ai_service.get_relevant_context_files', return_value=mock_relevant_files)
 

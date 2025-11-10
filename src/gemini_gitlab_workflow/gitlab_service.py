@@ -5,6 +5,7 @@ import json
 import yaml
 import shutil
 import time
+from pathlib import Path
 from gemini_gitlab_workflow import config
 from gemini_gitlab_workflow.config import TIMESTAMPS_CACHE_PATH
 
@@ -34,7 +35,7 @@ def _slugify(text):
         nodes_data.append(node)
         print(f"[DIAG] Final relative_filepath in build_project_map: {relative_filepath}")
 
-def get_issue_filepath(title: str, labels: list[str]) -> str | None:
+def get_issue_filepath(title: str, labels: list[str]) -> Path | None:
     """
     Determines the canonical file path for an issue based on its title and labels.
     This function now primarily handles Epics and other top-level issues.
@@ -61,20 +62,20 @@ def get_issue_filepath(title: str, labels: list[str]) -> str | None:
     
     # If there's no backbone, it's unassigned for now. Stories will be reassigned later.
     if not backbone_label:
-        return os.path.join("_unassigned", filename)
+        return Path("_unassigned") / filename
 
     backbone_name = _slugify(backbone_label.split("::", 1)[1])
 
     # If it's an Epic, its path is determined by its backbone.
     if is_epic:
         epic_name = _slugify(title) # The directory name for an epic is its slugified title
-        final_path = os.path.join("backbones", backbone_name, epic_name, filename)
+        final_path = Path("backbones") / backbone_name / epic_name / filename
         print(f"[DIAG] Path for Epic '{title}': {final_path}")
         return final_path
 
     # If it's a story or another backbone-level item, place it directly under the backbone for now.
     # Stories will be moved to their epic's directory later in the process.
-    final_path = os.path.join("backbones", backbone_name, filename)
+    final_path = Path("backbones") / backbone_name / filename
     print(f"[DIAG] Path for non-Epic item '{title}': {final_path}")
     return final_path
 
@@ -196,17 +197,17 @@ def build_project_map() -> dict:
             continue # Skip tasks or other non-file items
 
         if "Type::Epic" in issue.labels:
-            epic_map[issue.iid] = os.path.dirname(relative_filepath)
+            epic_map[issue.iid] = relative_filepath.parent
             print(f"[DIAG] Mapped Epic {issue.iid} to path: {epic_map[issue.iid]}")
 
         # Write file and create node for the epic/other item
-        full_filepath = os.path.join(config.DATA_DIR, relative_filepath)
-        gitlab_managed_files.add(full_filepath)
-        os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
+        full_filepath = config.DATA_DIR / relative_filepath
+        gitlab_managed_files.add(str(full_filepath))
+        full_filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f:
             f.write(_generate_markdown_content(issue))
 
-        node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": relative_filepath}
+        node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": str(relative_filepath)}
         nodes_data.append(node)
 
     # --- Pass 2: Process Stories and their relationships ---
@@ -237,7 +238,7 @@ def build_project_map() -> dict:
         # Determine file path for the story
         story_filename = f"story-{_slugify(issue.title)}.md"
         if parent_epic_path:
-            relative_filepath = os.path.join(parent_epic_path, story_filename)
+            relative_filepath = parent_epic_path / story_filename
             link_tuple = (parent_epic_iid, issue.iid, "contains")
             if link_tuple not in unique_links_set:
                 unique_links_set.add(link_tuple)
@@ -246,20 +247,20 @@ def build_project_map() -> dict:
             backbone_label = next((label for label in issue.labels if label.startswith("Backbone::")), None)
             if backbone_label:
                 backbone_name = _slugify(backbone_label.split("::", 1)[1])
-                relative_filepath = os.path.join("backbones", backbone_name, story_filename)
+                relative_filepath = Path("backbones") / backbone_name / story_filename
             else:
-                relative_filepath = os.path.join("_unassigned", story_filename)
+                relative_filepath = Path("_unassigned") / story_filename
         
         print(f"[DIAG] Final path for Story {issue.iid}: {relative_filepath}")
 
         # Write file and create node for the story
-        full_filepath = os.path.join(config.DATA_DIR, relative_filepath)
-        gitlab_managed_files.add(full_filepath)
-        os.makedirs(os.path.dirname(full_filepath), exist_ok=True)
+        full_filepath = config.DATA_DIR / relative_filepath
+        gitlab_managed_files.add(str(full_filepath))
+        full_filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(full_filepath, 'w', encoding='utf-8') as f:
             f.write(_generate_markdown_content(issue))
 
-        node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": relative_filepath}
+        node = {"id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state, "web_url": issue.web_url, "labels": issue.labels, "local_path": str(relative_filepath)}
         nodes_data.append(node)
 
     # --- Pass 3: Process text-based relationships for all issues ---
