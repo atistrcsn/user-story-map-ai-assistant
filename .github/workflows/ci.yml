@@ -10,6 +10,7 @@ on:
       - 'init.md'
       - 'GEMINI.md'
       - '.gitignore'
+      - '.github/**'
       - 'gitlab-sync.code-workspace'
       - '.vscode/**'
       - '.gemini/**'
@@ -22,7 +23,16 @@ on:
       - main
     paths-ignore:
       - 'docs/**'
-
+      - 'README.md'
+      - 'init.md'
+      - 'GEMINI.md'
+      - '.gitignore'
+      - '.github/**'
+      - 'gitlab-sync.code-workspace'
+      - '.vscode/**'
+      - '.gemini/**'
+      - 'gemini_prompts/**'
+      - '.devcontainer/**'
 env:
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
 
