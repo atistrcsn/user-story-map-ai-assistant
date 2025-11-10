@@ -264,14 +264,14 @@ This task aims to introduce a "filter and re-substitution" mechanism that anonym
 
 **Status:** [PLANNED]
 
-**Description:** Implement a mechanism in the GitLab CI/CD pipeline to prevent unnecessary test and build pipeline runs when only documentation or non-code files have been modified.
+**Description:** Implement a mechanism in the GitHub Actions workflow to prevent unnecessary test and build pipeline runs when only documentation or non-code files have been modified.
 
 **Implementation Plan:**
-*   Analyze `.gitlab-ci.yml` to identify current pipeline triggers.
-*   Research GitLab CI/CD `rules:changes` or similar features to conditionally run jobs based on file changes.
+*   Analyze `.github/workflows/ci.yml` to identify current pipeline triggers.
+*   Research GitHub Actions `on.<push|pull_request>.paths` or `on.<push|pull_request>.paths-ignore` features to conditionally run jobs based on file changes.
 *   Investigate using a specific flag in the commit message (e.g., `[skip ci]`, `[docs]`) as an alternative or supplementary method, and evaluate this against best practices.
 *   Define rules to skip test and build stages if changes are limited to `docs/` directory or other specified non-code files.
-*   Implement the changes in `.gitlab-ci.yml`.
+*   Implement the changes in `.github/workflows/ci.yml`.
 
 **Testing Ideas:**
 *   Make a change only in a documentation file and verify that the test and build stages are skipped.

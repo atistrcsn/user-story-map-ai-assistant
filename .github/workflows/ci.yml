@@ -4,11 +4,24 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'init.md'
+      - 'GEMINI.md'
+      - '.gitignore'
+      - 'gitlab-sync.code-workspace'
+      - '.vscode/**'
+      - '.gemini/**'
+      - 'gemini_prompts/**'
+      - '.devcontainer/**'
     tags:
       - 'v*'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
 
 env:
   UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
