@@ -1,8 +1,9 @@
 import json
 import os
-import re
+from typing import List, Optional
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from pydantic import BaseModel, Field
 from gemini_gitlab_workflow import config
 
 # Configure the generative AI client
@@ -11,6 +12,28 @@ try:
 except Exception as e:
     print(f"Error configuring Google Gemini API: {e}")
     genai = None
+
+# --- Pydantic Schemas for Structured Output ---
+
+class RelevantFiles(BaseModel):
+    """Schema for the list of relevant files."""
+    relevant_files: List[str] = Field(description="A list of file paths relevant to the user's request.")
+
+class Dependencies(BaseModel):
+    """Schema for issue dependencies."""
+    is_blocked_by: Optional[List[str]] = None
+
+class ProposedIssue(BaseModel):
+    """Schema for a single proposed issue."""
+    id: str = Field(description="A temporary, unique identifier for the new issue (e.g., 'NEW_1').")
+    title: str = Field(description="A short, descriptive title for the issue from a user's perspective.")
+    description: str = Field(description="The full Markdown description of the issue, following the user story template.")
+    labels: List[str] = Field(description="A list of GitLab labels to be applied to the issue.")
+    dependencies: Optional[Dependencies] = None
+
+class ImplementationPlan(BaseModel):
+    """Schema for the entire implementation plan."""
+    proposed_issues: List[ProposedIssue] = Field(description="A list of all the new epics and stories to be created.")
 
 # Define safety settings to block harmful content
 safety_settings = [
@@ -32,22 +55,18 @@ safety_settings = [
     },
 ]
 
-def _extract_json_from_response(text: str) -> str:
-    """Extracts a JSON object or array from a string, ignoring Markdown fences."""
-    # Find the start of the JSON (either { or [)
-    match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
-    if match:
-        return match.group(0)
-    return "" # Return empty string if no JSON found
-
-def call_google_gemini_api(messages: list, model_name: str) -> str:
-    """Calls the Google Gemini API with a structured list of messages."""
+def call_google_gemini_api(messages: list, model_name: str, response_schema: dict) -> str:
+    """Calls the Google Gemini API with a structured list of messages and a response schema."""
     if not genai:
         print("Error: Google Gemini API client is not configured.")
         return ''
     try:
         model = genai.GenerativeModel(model_name, safety_settings=safety_settings)
-        config = genai.GenerationConfig(temperature=0)
+        config = genai.GenerationConfig(
+            temperature=0,
+            response_mime_type="application/json",
+            response_schema=response_schema,
+        )
         response = model.generate_content(messages, generation_config=config)
         return response.text
     except Exception as e:
@@ -60,18 +79,13 @@ def get_relevant_context_files(user_prompt: str, context_sources: list[dict], mo
         print("--- AI API CALL (MOCKED for get_relevant_context_files) ---")
         return ["docs/architecture-design-document.md", "docs/feature-ai-story-map-creation.md"]
 
-    system_prompt = """
-CRITICAL: Your response must be ONLY a raw JSON list of strings, without any Markdown formatting or other text.
-
-Feladat: Válaszd ki a legrelevánsabb kontextus fájlokat egy új szoftverfejlesztési feladathoz.
-Például: ["docs/architecture.md", "gitlab_data/.../issue-101.md"]
-"""
+    system_prompt = "Your task is to select the most relevant context files for a new software development task."
     
     user_content = f"""
-Felhasználói kérés: "{user_prompt}"
+User Request: "{user_prompt}"
 
-Választható kontextus fájlok:
-{os.linesep.join([f'{i}. Fájl: {s["path"]}, Leírás: {s["summary"]}' for i, s in enumerate(context_sources, 1)])}
+Available context files:
+{os.linesep.join([f'- File: {s["path"]}, Description: {s["summary"]}' for s in context_sources])}
 """
 
     messages = [
@@ -79,28 +93,26 @@ Választható kontextus fájlok:
         {'role': 'user', 'parts': [user_content.strip()]}
     ]
 
-    raw_response = call_google_gemini_api(messages, model_name=config.GEMINI_FAST_MODEL)
+    raw_response = call_google_gemini_api(
+        messages,
+        model_name=config.GEMINI_FAST_MODEL,
+        response_schema=RelevantFiles.model_json_schema()
+    )
     if raw_response is None:
-        return None # Propagate the error signal
+        return None
 
-    json_str = _extract_json_from_response(raw_response)
-    if not json_str:
-        return []
     try:
-        relevant_files = json.loads(json_str)
-        if not isinstance(relevant_files, list):
-            return []
-        return relevant_files
-    except json.JSONDecodeError:
-        print(f"[ERROR] Failed to decode JSON from AI response for context files: {raw_response}")
+        validated_response = RelevantFiles.model_validate_json(raw_response)
+        return validated_response.relevant_files
+    except Exception as e:
+        print(f"[ERROR] Failed to validate the AI response for context files: {e}")
         return None
 
 
 def generate_implementation_plan(user_prompt: str, context_content: str, existing_issues: list[dict], mock: bool = False) -> dict | None:
     """Uses a powerful AI model to generate a structured implementation plan from a business perspective."""
     if mock:
-        # Mock response updated to reflect the new persona and template
-        # ... (omitted for brevity)
+        # This mock would need to be updated to return a JSON string matching the Pydantic schema
         pass
 
     existing_issues_str = "\n".join(
@@ -124,8 +136,7 @@ Based on the "User Request", create a plan of user stories. Before you begin, ca
 2.  **Epic Creation Rule:** If you create a new Epic, it **MUST** be the first item in the `proposed_issues` list. It must not have a `Type::Story` label. Crucially, it **MUST** also have a label in the format `Epic::[Epic Title]`, where `[Epic Title]` is the same as the issue's title. All subsequent Story issues must then belong to this new Epic.
 3.  **Hierarchy Enforcement:** You must follow a strict, flat hierarchy. An Epic can only be a child of a Backbone. A Story can only be a child of an Epic. **You are strictly forbidden from creating an Epic that is a child of another Epic.**
 4.  **Analyze Existing Issues:** Do not create duplicate stories. If a functional story already covers part of the request, do not create it again. If the existing plan is sufficient, return an empty list for "proposed_issues".
-5.  **JSON-Only Output:** Your entire response MUST be a single, valid, raw JSON object.
-6.  **Mandatory Description Template:** For EACH proposed issue, the `description` field MUST follow this exact Markdown template:
+5.  **Mandatory Description Template:** For EACH proposed issue, the `description` field MUST follow this exact Markdown template:
     ```markdown
     # {{{{title}}}}
 
@@ -143,15 +154,9 @@ Based on the "User Request", create a plan of user stories. Before you begin, ca
     - [ ] A criterion describing a verifiable outcome.
     - [ ] Another criterion.
     ```
-7.  **JSON Structure for Each Issue:**
-    - "id": A temporary, unique identifier (e.g., "NEW_1").
-    - "title": A short, descriptive title from the user's perspective. No prefixes like 'Story:'.
-    - "description": The full Markdown text from the template above.
-    - "labels": A list of GitLab labels (e.g., `Type::Story`, `Epic::...`, `Backbone::...`).
-    - "dependencies": An optional object for functional dependencies.
-8.  **Define Dependencies:** After proposing all issues, analyze them. If implementing one issue is a logical prerequisite for another, you **MUST** define this relationship. For example, if NEW_2 must be done before NEW_3, add this to NEW_3: `"dependencies": {{"is_blocked_by": ["NEW_2"]}}`.
-9.  **CRITICAL DEPENDENCY RULE:** You MUST NOT propose a dependency on any issue that has a state of 'closed'. Closed issues are completed and cannot block new work. Only issues with a state of 'opened' can be considered as blockers.
-10. **LABEL INHERITANCE IS MANDATORY: All Story issues MUST inherit BOTH the `Epic::` and the `Backbone::` labels from their parent Epic, without exception.**
+6.  **Define Dependencies:** After proposing all issues, analyze them. If implementing one issue is a logical prerequisite for another, you **MUST** define this relationship. For example, if NEW_2 must be done before NEW_3, add this to NEW_3: `"dependencies": {{"is_blocked_by": ["NEW_2"]}}`.
+7.  **CRITICAL DEPENDENCY RULE:** You MUST NOT propose a dependency on any issue that has a state of 'closed'. Closed issues are completed and cannot block new work. Only issues with a state of 'opened' can be considered as blockers.
+8.  **LABEL INHERITANCE IS MANDATORY: All Story issues MUST inherit BOTH the `Epic::` and the `Backbone::` labels from their parent Epic, without exception.**
 
 Generate the business-functional user story map now.
 """
@@ -175,26 +180,18 @@ Generate the business-functional user story map now.
         {'role': 'user', 'parts': [user_content.strip()]}
     ]
 
-    raw_response = call_google_gemini_api(messages, model_name=config.GEMINI_SMART_MODEL)
+    raw_response = call_google_gemini_api(
+        messages,
+        model_name=config.GEMINI_SMART_MODEL,
+        response_schema=ImplementationPlan.model_json_schema()
+    )
     if raw_response is None:
-        return None # Propagate the error signal
+        return None
 
-    json_str = _extract_json_from_response(raw_response)
-    if not json_str:
-        # This can happen if the AI decides no new issues are needed,
-        # or if the response was not valid JSON. In the latter case,
-        # we treat it as an error and return None.
-        if "{" not in raw_response and "[" not in raw_response:
-             print(f"[ERROR] AI response did not contain valid JSON: {raw_response}")
-             return None
-        return {"proposed_issues": []}
-    
     try:
-        plan = json.loads(json_str)
-        if not isinstance(plan, dict) or "proposed_issues" not in plan:
-            # If the structure is wrong, but it was valid JSON, treat as empty.
-            return {"proposed_issues": []}
-        return plan
-    except json.JSONDecodeError:
-        print(f"[ERROR] Failed to decode JSON from AI response for implementation plan: {raw_response}")
+        validated_plan = ImplementationPlan.model_validate_json(raw_response)
+        # Return as a dictionary for compatibility with the rest of the system
+        return validated_plan.model_dump(exclude_none=True)
+    except Exception as e:
+        print(f"[ERROR] Failed to validate the AI response for the implementation plan: {e}")
         return None

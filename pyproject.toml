@@ -22,7 +22,8 @@ dependencies = [
     "python-dotenv",
     "networkx",
     "rich",
-    "google-generativeai"
+    "google-generativeai",
+    "pydantic>=2.12.4",
 ]
 
 [project.scripts]
