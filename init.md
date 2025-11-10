@@ -1,31 +1,34 @@
-A küldetés világos. Egy robusztus, fájl-alapú rendszert kell létrehoznunk a GitLab entitások szinkronizálására és opcionálisan a vizualizálására, amely alapul szolgálhat egy AI asszisztens számára is.
+# Gemini GitLab Workflow - Project Initialization & Strategy
 
-### Fázis 1: Észlelés és Megértés (Perceive & Understand)
+This document outlines the strategic decisions, technology choices, and initial planning for the Gemini GitLab Workflow (ggw) project.
 
-A feladatot a következő kulcsfontosságú komponensekre bontottam:
+## Core Task & Objective
 
-1.  **Adatforrás:** Egy self-hosted GitLab CE instance.
-2.  **Szinkronizálandó Entitások:** Issues, Labels, Milestones.
-3.  **Célrendszer:** Lokális, könyvtár-alapú fájlrendszer.
-4.  **Struktúra:** Egy agilis módszertanra épülő hierarchia (Backbone -> Epic -> Story -> Task), amelyet a GitLab Labelek határoznak meg.
-5.  **Adatformátum:** Markdown fájlok YAML frontmatterrel, amely tartalmazza a metaadatokat (iid, státusz, kapcsolatok stb.).
-6.  **Vizualizáció :** Egy egyszerű, open-source, böngésző-alapú eszköz, amely képes a fájlstruktúrát user story map-ként megjeleníteni.
+The primary objective is to create a tool that synchronizes GitLab issues with a local file system, uses a Gemini AI model to analyze the project context and generate new feature plans (Epics, Stories), and then uploads these structured plans back to GitLab.
 
-A cél egy egyirányú szinkronizáció (GitLab -> Fájlrendszer), amely egy megbízható, csak olvasható másolatot hoz létre.
+The task is broken down into the following key components:
 
-### Fázis 2: Érvelés és Tervezés (Reason & Plan)
+1.  **GitLab Synchronization:** A script to fetch all relevant data (issues, labels, etc.) from a GitLab project and store it locally in a structured format (e.g., Markdown files).
+2.  **Contextual Analysis:** A mechanism to build a comprehensive understanding of the project's state, including issue relationships and dependencies.
+3.  **AI-Powered Planning:** Integration with the Gemini AI model to process a high-level user request, analyze the project context, and generate a detailed, structured implementation plan.
+4.  **Local Artifact Generation:** Creation of local files (Markdown, YAML) that represent the AI-generated plan.
+5.  **Upload to GitLab:** A script to take the locally generated plan and create the corresponding issues and relationships in GitLab.
 
-**Tervezési Módba**
+## Technology Stack & Rationale
 
-#### Elemzés és Indoklás
+*   **Technology:** A script is the most suitable tool for this task. **Python** is an excellent choice due to the `python-gitlab` library, which significantly simplifies communication with the GitLab API. Alternatively, **Go** could be considered for its performance and binary compilation capabilities, but Python allows for faster prototyping. Go might be an option for a future version of the project; for now, Python is sufficient for internal use.
+*   **Local Representation:** Issues will be stored as **Markdown files**. This format is human-readable, easy to parse, and integrates well with version control systems.
+*   **Project Mapping:** A central `project_map.yaml` file will be used to store the relationships and dependencies between issues, creating a graph-like representation of the project.
 
-A probléma két különálló, de egymásra épülő részből áll:
+## High-Level Workflow
 
-1.  **A Szinkronizációs Rendszer:** Egy megbízható folyamat, amely lekérdezi az adatokat a GitLab API-n keresztül, és a megadott logika szerint fájlokká alakítja őket.
-    *   **Technológia:** Erre a feladatra egy szkript a legalkalmasabb. A **Python** kiváló választás a `python-gitlab` könyvtár miatt, amely jelentősen leegyszerűsíti a GitLab API-val való kommunikációt. Alternatívaként a **Go** is megfontolandó a teljesítménye és a bináris fordíthatósága miatt, de a Python gyorsabb prototipizálást tesz lehetővé. De ez inkább a projekt második verziójánál jöhet szóban,e gyelőre belső használatra elég a Python.
-2.  **A Vizualizációs Rendszer:** Egy eszköz, amely beolvassa a generált Markdown fájlokat és egy interaktív, tábla-szerű felületen jeleníti meg őket.
-    *   **Kulcsfontosságú követelmény:** Az eszköznek közvetlenül a fájlrendszerből kell dolgoznia anélkül, hogy komplex adatbázisra vagy szerveroldali feldolgozásra lenne szüksége. Ez a "gyorsan indítható" és "egyszerű" kritériumoknak felel meg.
-    *   **Javasolt Eszközök:**
-        *   **1. opció (Erősen javasolt): Obsidian.** Ez egy Markdown-alapú tudásmenedzsment eszköz. Bár technikailag egy Electron alkalmazás, tökéletesen megfelel a célnak. A beépített "Canvas" (vászon) és a közösségi "Kanban" plugin segítségével vizuálisan elrendezhetők a Markdown jegyzetek, linkelve őket egymáshoz. Ez a leggyorsabb út egy működő, interaktív user story map létrehozásához.
-        *   **2. opció (Testreszabható): Egy Statikus Oldal Generátor (SSG) + JavaScript.** Eszközök, mint a **Hugo** (Go nyelven íródott, rendkívül gyors) vagy az **Astro** képesek a Markdown fájlokat beolvasni és egy statikus weboldalt generálni. Egy egyszerű JavaScript könyvtárral (pl. `leader-line-new` a vizuális kapcsolatokhoz, vagy egy egyszerű kanban board library) megvalósítható a kívánt vizualizáció. Ez több munkát igényel, de teljes kontrollt ad a végső megjelenés felett.
+1.  **`sync` command:** Fetches all data from GitLab and creates the local Markdown files and the `project_map.yaml`.
+2.  **`create feature` command:** Initiates an interactive workflow where the user provides a high-level feature description. The tool then uses the Gemini AI to generate a plan, which is saved locally.
+3.  **`upload` command:** Pushes the locally generated plan to GitLab, creating the new issues and linking them.
 
+## Next Steps
+
+*   Develop the initial `sync` script.
+*   Implement the `project_map.yaml` generation.
+*   Create the basic CLI structure using a library like `Typer`.
+*   Begin integration with the Gemini AI API.

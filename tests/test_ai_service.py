@@ -3,7 +3,14 @@ import json
 from unittest.mock import patch, MagicMock
 from pydantic import ValidationError
 
-from gemini_gitlab_workflow.ai_service import get_relevant_context_files, generate_implementation_plan, RelevantFiles, ImplementationPlan
+from gemini_gitlab_workflow.ai_service import (
+    get_relevant_context_files, 
+    generate_implementation_plan, 
+    RelevantFiles, 
+    ImplementationPlan,
+    RELEVANT_FILES_SCHEMA,
+    IMPLEMENTATION_PLAN_SCHEMA
+)
 
 class TestAIService:
 
@@ -28,7 +35,7 @@ class TestAIService:
 
         assert gen_config is not None
         assert gen_config.response_mime_type == "application/json"
-        assert gen_config.response_schema == RelevantFiles.model_json_schema()
+        assert gen_config.response_schema == RELEVANT_FILES_SCHEMA
 
         assert isinstance(relevant_files, list)
         assert relevant_files == ["docs/architecture.md"]
@@ -72,7 +79,7 @@ class TestAIService:
 
         assert gen_config is not None
         assert gen_config.response_mime_type == "application/json"
-        assert gen_config.response_schema == ImplementationPlan.model_json_schema()
+        assert gen_config.response_schema == IMPLEMENTATION_PLAN_SCHEMA
 
         assert isinstance(plan, dict)
         assert "proposed_issues" in plan

@@ -10,7 +10,12 @@ The system is composed of three primary logical components:
 
 1.  **CLI Module (`gemini_cli.py`):** A Python-based command-line tool that serves as the main user interface. It orchestrates the different services like synchronization and AI-powered analysis.
 2.  **GitLab Service Module (`gitlab_service.py`):** Responsible for all communication with the GitLab API, including fetching data and uploading new entities.
-3.  **AI Service Module (`ai_service.py`):** A dedicated module for handling all interactions with external AI APIs (e.g., Google Gemini). It is responsible for prompt engineering, making API calls, and parsing the results.
+*   **AI Service Module (`ai_service.py`):** A dedicated module for handling all interactions with external AI APIs (e.g., Google Gemini). Its design has been significantly updated to enhance security, reliability, and configurability.
+    *   **Schema-Enforced Structured Output:** To eliminate the fragility of parsing JSON from raw text, the system now uses the Gemini API's structured output feature. For each type of AI request, a rigid JSON schema is defined manually as a Python dictionary, ensuring 100% compatibility. The API call is configured to enforce this schema, guaranteeing a valid JSON response.
+    *   **Pydantic for Response Validation:** After receiving the guaranteed JSON response, it is parsed into a Pydantic model. This validates the data types, checks for required fields, and ensures data integrity before it is used by the rest of the application.
+    *   **Content Safety Settings:** All API calls are configured with default safety settings set to `BLOCK_MEDIUM_AND_ABOVE` for all major harm categories.
+    *   **Configurable Models:** Model names are externalized to `config.py` and can be overridden by environment variables (`GEMINI_SMART_MODEL`, `GEMINI_FAST_MODEL`).
+    *   **Prompt Injection Mitigation:** The service strictly separates system instructions from user-provided data using the API's message-based structure (`role: 'model'` vs. `role: 'user'`)
 4.  **Visualization Module (External):** An external, file-system-aware tool (e.g., Obsidian) that consumes the generated Markdown files for visualization.
 
 ## 3. Architectural Decisions

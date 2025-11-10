@@ -54,7 +54,7 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 ## Implement Robust GitLab Upload Functionality
 
-**Status:** [KÉSZ]
+**Status:** [DONE]
 
 **Description:** Refactor and properly implement the `upload_artifacts_to_gitlab` function in `gitlab_service.py` using a test-driven approach to ensure correctness and reliability.
 

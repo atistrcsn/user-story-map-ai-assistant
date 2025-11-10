@@ -23,7 +23,7 @@ web_url: https://gitlab.hobbes.hu/hmedia/gitlab-ai-assistant/-/issues/2
 ---
 
 ### Elfogadási Kritériumok (Acceptance Criteria)
-*Ez a lista azt határozza meg, minek kell teljesülnie a felhasználó szemszögéből, hogy a sztori "kész"-nek minősüljön.*
+*This list defines what must be true from the user's perspective for the story to be considered "done."*
 
 - [ ] A felhasználó lát egy űrlapot e-mail és jelszó mezőkkel.
 - [ ] A rendszer megerősítést kér a jelszóról.

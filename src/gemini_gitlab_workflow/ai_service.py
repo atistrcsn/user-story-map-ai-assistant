@@ -55,6 +55,52 @@ safety_settings = [
     },
 ]
 
+# --- Manual Schemas for Gemini API ---
+
+RELEVANT_FILES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "relevant_files": {
+            "type": "array",
+            "items": {"type": "string"}
+        }
+    },
+    "required": ["relevant_files"]
+}
+
+IMPLEMENTATION_PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "proposed_issues": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                    "labels": {
+                        "type": "array",
+                        "items": {"type": "string"}
+                    },
+                    "dependencies": {
+                        "type": "object",
+                        "properties": {
+                            "is_blocked_by": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        }
+                    }
+                },
+                "required": ["id", "title", "description", "labels"]
+            }
+        }
+    },
+    "required": ["proposed_issues"]
+}
+
+
 def call_google_gemini_api(messages: list, model_name: str, response_schema: dict) -> str:
     """Calls the Google Gemini API with a structured list of messages and a response schema."""
     if not genai:
@@ -96,7 +142,7 @@ Available context files:
     raw_response = call_google_gemini_api(
         messages,
         model_name=config.GEMINI_FAST_MODEL,
-        response_schema=RelevantFiles.model_json_schema()
+        response_schema=RELEVANT_FILES_SCHEMA
     )
     if raw_response is None:
         return None
@@ -149,7 +195,7 @@ Based on the "User Request", create a plan of user stories. Before you begin, ca
     ---
 
     ### Acceptance Criteria
-    *This list defines what must be true from the user's perspective for the story to be considered "done."*
+    *This list defines what must be true from the user's perspective for the story to be considered "done."
 
     - [ ] A criterion describing a verifiable outcome.
     - [ ] Another criterion.
@@ -183,7 +229,7 @@ Generate the business-functional user story map now.
     raw_response = call_google_gemini_api(
         messages,
         model_name=config.GEMINI_SMART_MODEL,
-        response_schema=ImplementationPlan.model_json_schema()
+        response_schema=IMPLEMENTATION_PLAN_SCHEMA
     )
     if raw_response is None:
         return None
