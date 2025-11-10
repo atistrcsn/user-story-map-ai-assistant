@@ -182,6 +182,27 @@ This task aims to introduce a "filter and re-substitution" mechanism that anonym
 
 ### Proposed Backlog Item
 
+**Title:** Feature: Configurable User Story Language
+
+**Status:** [PLANNED]
+
+**Description:** This feature allows users to configure the language in which AI-generated user story files are created. By default, the language will be 'english', but users can change this setting in a configuration file. The AI will then adhere to this configured language when planning the user story map. Additionally, the system may be extended to detect the language of existing user stories during the initial synchronization and automatically set this language in the configuration file for subsequent use.
+
+**Implementation Plan:**
+1.  **Configuration Mechanism:** Implement a way to store and retrieve the preferred language setting (e.g., in `gitlab-config.json` or a new configuration file).
+2.  **AI Service Integration:** Modify the `ai_service.py` to accept a `language` parameter for user story generation.
+3.  **CLI Integration:** Update the `create-feature` command in `gemini_cli.py` to read the configured language and pass it to the AI service.
+4.  **Language Detection (Optional):** Implement a language detection mechanism during the `smart_sync` process to identify the language of existing user stories and update the configuration.
+
+**Testing Ideas:**
+*   Verify that the default language ('english') is used when no configuration is specified.
+*   Test changing the language in the configuration and confirm the AI generates user stories in the new language.
+*   (If implemented) Verify that the language detection correctly identifies the language of existing stories and updates the configuration.
+
+---
+
+### Proposed Backlog Item
+
 **Title:** Feature: Manual End-to-End Testing
 
 **Status:** [PLANNED]
