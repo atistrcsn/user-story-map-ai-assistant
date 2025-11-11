@@ -7,7 +7,7 @@ import os
 import glob
 from gemini_gitlab_workflow import gitlab_service
 from gemini_gitlab_workflow import ai_service
-from gemini_gitlab_workflow.sanitizer import anonymize_text, deanonymize_text
+from gemini_gitlab_workflow.sanitizer import Sanitizer
 from rich.console import Console
 from rich.pretty import pprint
 import re
@@ -16,6 +16,7 @@ import unicodedata
 from pathlib import Path
 
 app = typer.Typer()
+sanitizer = Sanitizer() # Instantiate the sanitizer globally or pass it around
 
 @app.command()
 def init():
@@ -299,14 +300,14 @@ def create_feature(
                         })
 
         # Anonymize context before sending to AI
-        anonymized_feature_description = anonymize_text(feature_description)
-        anonymized_context_content = anonymize_text(context_content)
+        anonymized_feature_description = sanitizer.anonymize_text(feature_description)
+        anonymized_context_content = sanitizer.anonymize_text(context_content)
         
         anonymized_existing_issues = []
         for issue in existing_issues_context:
             anonymized_issue = {
-                "title": anonymize_text(issue.get("title", "")),
-                "labels": [anonymize_text(label) for label in issue.get("labels", [])],
+                "title": sanitizer.anonymize_text(issue.get("title", "")),
+                "labels": [sanitizer.anonymize_text(label) for label in issue.get("labels", [])],
                 "state": issue.get("state")
             }
             anonymized_existing_issues.append(anonymized_issue)
@@ -318,9 +319,9 @@ def create_feature(
     # Deanonymize the response from AI
     if plan and plan.get("proposed_issues"):
         for issue in plan["proposed_issues"]:
-            issue["title"] = deanonymize_text(issue.get("title", ""))
-            issue["description"] = deanonymize_text(issue.get("description", ""))
-            issue["labels"] = [deanonymize_text(label) for label in issue.get("labels", [])]
+            issue["title"] = sanitizer.deanonymize_text(issue.get("title", ""))
+            issue["description"] = sanitizer.deanonymize_text(issue.get("description", ""))
+            issue["labels"] = [sanitizer.deanonymize_text(label) for label in issue.get("labels", [])]
 
     console.print("\n[bold green]✓ AI generated the following implementation plan:[/bold green]")
     

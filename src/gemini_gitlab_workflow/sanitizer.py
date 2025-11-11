@@ -1,46 +1,18 @@
-"""
-This module provides functions to anonymize and deanonymize text by replacing
-sensitive information with placeholders.
-"""
-
 import os
 
-def anonymize_text(text: str) -> str:
-    """
-    Replaces sensitive information in the text with placeholders.
+class Sanitizer:
+    def __init__(self):
+        self.GGW_GITLAB_URL = os.environ.get("GGW_GITLAB_URL", "[PROJECT_URL]")
+        self.GGW_GITLAB_PROJECT_ID = os.environ.get("GGW_GITLAB_PROJECT_ID", "[PROJECT_ID]")
 
-    Args:
-        text: The text to anonymize.
+    def anonymize_text(self, text: str) -> str:
+        """Replaces project-specific identifiers with generic placeholders."""
+        text = text.replace(self.GGW_GITLAB_URL, "[PROJECT_URL]")
+        text = text.replace(self.GGW_GITLAB_PROJECT_ID, "[PROJECT_ID]")
+        return text
 
-    Returns:
-        The anonymized text.
-    """
-    gitlab_url = os.getenv("GGW_GITLAB_URL", "")
-    project_id = os.getenv("GGW_GITLAB_PROJECT_ID", "")
-
-    if gitlab_url:
-        text = text.replace(gitlab_url, "[PROJECT_URL]")
-    if project_id:
-        text = text.replace(project_id, "[PROJECT_ID]")
-
-    return text
-
-def deanonymize_text(text: str) -> str:
-    """
-    Replaces placeholders in the text with sensitive information.
-
-    Args:
-        text: The text to deanonymize.
-
-    Returns:
-        The deanonymized text.
-    """
-    gitlab_url = os.getenv("GGW_GITLAB_URL", "")
-    project_id = os.getenv("GGW_GITLAB_PROJECT_ID", "")
-
-    if gitlab_url:
-        text = text.replace("[PROJECT_URL]", gitlab_url)
-    if project_id:
-        text = text.replace("[PROJECT_ID]", project_id)
-
-    return text
+    def deanonymize_text(self, text: str) -> str:
+        """Restores project-specific identifiers from generic placeholders."""
+        text = text.replace("[PROJECT_URL]", self.GGW_GITLAB_URL)
+        text = text.replace("[PROJECT_ID]", self.GGW_GITLAB_PROJECT_ID)
+        return text

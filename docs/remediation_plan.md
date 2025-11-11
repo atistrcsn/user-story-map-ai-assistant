@@ -38,6 +38,8 @@ This plan is based on the critical analysis recorded in `docs/analysis_notes.md`
     2.  Write unit tests for both functions to verify the correct replacement and restoration of placeholders.
     3.  Modify `tests/test_gemini_cli.py`: in a test, mock the `ai_service` call and assert that the context passed to it is the anonymized version.
 
+**`[STATUS: DONE]`**
+
 ---
 
 ### Phase 2: Addressing Architectural Deficiencies
