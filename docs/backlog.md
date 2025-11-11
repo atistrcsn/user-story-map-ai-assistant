@@ -146,7 +146,25 @@ This feature enables a user to provide a high-level idea and have the AI assista
 
 ---
 
-### **Proposed Backlog Item**
+## Fix Story Map Generation and Upload Logic
+
+**Status:** [DONE]
+
+**Description:** Fixed several bugs in the `create-feature` and `upload-story-map` commands to ensure correct generation and uploading of new stories.
+
+**Implementation Plan:**
+
+1.  **Fix Incorrect Story File Path:** Modified `cli.py` to correctly identify existing epics from the `project_map.yaml` and place new stories within their corresponding epic directories. This resolves the issue where stories for existing epics were created at the wrong level.
+2.  **Remove Description from `project_map.yaml`:** Modified `cli.py` to stop adding the full `description` field to the `project_map.yaml` for new issues. This keeps the map lightweight and focused on structure.
+3.  **Upload Description from File:** Modified `gitlab_uploader.py` to read the description directly from the content of the local `.md` file during the upload process. This ensures that the full, detailed description is correctly uploaded to the GitLab issue.
+
+**Testing Ideas:**
+
+*   Verified that creating a new story for an existing epic places the `.md` file in the correct subdirectory.
+*   Verified that the `project_map.yaml` no longer contains the `description` field for newly created nodes.
+*   Verified that uploading a new story correctly populates the issue's description field in GitLab from the local file.
+
+### Proposed Backlog Item
 
 **Title:** Feature: Anonymize GitLab Context During AI Processing
 

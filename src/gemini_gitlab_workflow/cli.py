@@ -5,8 +5,7 @@ import typer
 import yaml
 import os
 import glob
-from gemini_gitlab_workflow import gitlab_service
-from gemini_gitlab_workflow import ai_service
+from gemini_gitlab_workflow import gitlab_service, ai_service, file_system_repo
 from gemini_gitlab_workflow.sanitizer import Sanitizer
 from rich.console import Console
 from rich.pretty import pprint
@@ -120,12 +119,23 @@ def _generate_local_files(plan: dict, console: Console):
         console.print("[yellow]Warning: No new issues proposed in the plan.[/yellow]")
         return
 
-    # --- Pass 1: Map out new epics: their paths and temporary IDs ---
+    # --- Pass 1: Map out all epics (new and existing) ---
+    existing_epic_map = {} # Maps 'Epic::<name>' to a dict with {'path': ..., 'id': ...}
+    for node in project_map.get("nodes", []):
+        labels = node.get("labels", [])
+        if "Type::Epic" in labels:
+            epic_title = node.get("title")
+            epic_label = f"Epic::{epic_title}"
+            existing_epic_map[epic_label] = {
+                "path": Path(os.path.dirname(config.DATA_DIR / node.get("local_path"))),
+                "id": node.get("id")
+            }
+
     new_epic_map = {} # Maps 'Epic::<name>' label to a dict with {'path': ..., 'id': ...}
     for issue in proposed_issues:
         labels = issue.get("labels", [])
         if "Type::Epic" in labels:
-            epic_dir_path_str = gitlab_service.get_issue_filepath(issue.get("title"), labels)
+            epic_dir_path_str = file_system_repo.get_issue_filepath(issue.get("title"), labels)
             if epic_dir_path_str:
                 temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
                 if temp_epic_label:
@@ -146,26 +156,31 @@ def _generate_local_files(plan: dict, console: Console):
         labels = issue.get("labels", [])
         relative_filepath = None
 
-        # If it's a story, try to find its parent epic's path and ID from our map
+        # If it's a story, try to find its parent epic's path and ID from our maps
         if "Type::Story" in labels:
             temp_epic_label = next((l for l in labels if l.startswith("Epic::")), None)
-            if temp_epic_label and temp_epic_label in new_epic_map:
-                parent_epic_info = new_epic_map[temp_epic_label]
+            parent_epic_info = None
+            if temp_epic_label:
+                if temp_epic_label in new_epic_map:
+                    parent_epic_info = new_epic_map[temp_epic_label]
+                elif temp_epic_label in existing_epic_map:
+                    parent_epic_info = existing_epic_map[temp_epic_label]
+
+            if parent_epic_info:
                 parent_epic_path = parent_epic_info["path"]
                 parent_epic_id = parent_epic_info["id"]
 
                 story_filename = f"story-{_slugify(title)}.md"
                 relative_filepath = parent_epic_path / story_filename
-                console.print(f"[DIAG] Story '{title}' mapped to new Epic path: {relative_filepath}")
+                console.print(f"[DIAG] Story '{title}' mapped to Epic path: {relative_filepath}")
                 
-                # CRITICAL FIX: Create the 'contains' link
                 new_links.append({"source": parent_epic_id, "target": temp_id, "type": "contains"})
                 console.print(f"[DIAG] Created 'contains' link from Epic '{parent_epic_id}' to Story '{temp_id}'")
 
 
         # If path wasn't determined above, use the default logic
         if not relative_filepath:
-            relative_filepath_str = gitlab_service.get_issue_filepath(title, labels)
+            relative_filepath_str = file_system_repo.get_issue_filepath(title, labels)
             if relative_filepath_str:
                 relative_filepath = Path(relative_filepath_str)
 
@@ -180,7 +195,7 @@ def _generate_local_files(plan: dict, console: Console):
         with open(full_filepath, 'w', encoding='utf-8') as f: f.write(markdown_content)
         console.print(f"  - Created file: {full_filepath}")
 
-        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": str(relative_filepath), "description": issue.get('description', '')}
+        new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": str(relative_filepath)}
         new_nodes.append(new_node)
         
         # Handle dependencies (unchanged)
@@ -225,7 +240,7 @@ def create_feature(
         gitlab_service.smart_sync()
         
         # Always rebuild the map and local files to ensure consistency
-        build_result = gitlab_service.build_project_map()
+        build_result = gitlab_service.build_project_map_and_sync_files()
         if build_result["status"] == "error":
             console.print(f"[bold red]Error rebuilding project map:[/bold red] {build_result['message']}")
             raise typer.Exit(1)
@@ -350,7 +365,7 @@ def sync_map():
     """Synchronize GitLab issues and build the project map."""
     console = Console()
     with console.status("[bold green]Synchronizing with GitLab and building project map...[/bold green]"):
-        result = gitlab_service.build_project_map()
+        result = gitlab_service.build_project_map_and_sync_files()
 
     if result["status"] == "error":
         console.print(f"[bold red]Error building project map:[/bold red] {result['message']}")
@@ -386,7 +401,7 @@ def upload_story_map():
         raise typer.Exit(1)
 
     with console.status("[bold green]Uploading artifacts to GitLab...[/bold green]"):
-        upload_result = gitlab_service.upload_artifacts_to_gitlab(project_map)
+        upload_result = gitlab_service.upload_new_artifacts(project_map)
 
     if upload_result["status"] == "success":
         console.print("[green]✓ Story map successfully uploaded to GitLab![/green]")

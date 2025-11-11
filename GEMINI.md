@@ -71,7 +71,8 @@ All documentation within this `GEMINI.md` file must be written in English to ens
     1.  It first processes all `Type::Epic` issues, creating their corresponding directories.
     2.  It then processes all `Type::Story` issues. For each story, it queries the GitLab API for its issue links.
     3.  If a link to a `Type::Epic` issue is found, the story's Markdown file is placed inside that Epic's directory.
--   **No More `Epic::` Labels:** The legacy convention of using `Epic::<name>` labels to define hierarchy is now **deprecated and must not be used**. All hierarchy is derived from issue links.
+-   **No More `Epic::` Labels:** The legacy convention of using `Epic::<name>` labels to define hierarchy is now **deprecated and must not be used** for GitLab-to-local synchronization. All hierarchy is derived from issue links.
+    -   **Note on Local Generation:** The `create-feature` command temporarily uses `Epic::<name>` labels in memory to correctly associate newly generated stories with their parent epics (both new and existing) before creating the formal `contains` link in the `project_map.yaml`. This is a transient part of the local generation logic and does not affect the primary GitLab hierarchy management.
 
 ## File and Directory Structure Convention
 

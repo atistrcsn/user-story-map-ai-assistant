@@ -1,6 +1,6 @@
 import os
 import pytest
-from src.gemini_gitlab_workflow.sanitizer import Sanitizer
+from gemini_gitlab_workflow.sanitizer import Sanitizer
 
 @pytest.fixture(autouse=True)
 def set_env_vars():

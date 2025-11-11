@@ -36,10 +36,8 @@ def mock_issue_2():
 @pytest.fixture
 def mock_gitlab_client(mocker, mock_issue_1, mock_issue_2):
     """Fixture to mock the entire gitlab_service module and its functions."""
-    # This fixture now mocks the service function, not the raw gitlab client
     mock_smart_sync = mocker.patch('gemini_gitlab_workflow.gitlab_service.smart_sync')
     
-    # Mock AI service calls to prevent actual API calls during CLI tests
     mocker.patch('gemini_gitlab_workflow.ai_service.get_relevant_context_files', return_value=[])
     mocker.patch('gemini_gitlab_workflow.ai_service.generate_implementation_plan', return_value={
         "proposed_issues": [
@@ -47,13 +45,12 @@ def mock_gitlab_client(mocker, mock_issue_1, mock_issue_2):
         ]
     })
     mocker.patch('typer.confirm', return_value=True)
-    mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={
+    mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map_and_sync_files', return_value={
         "status": "success",
         "map_data": {"nodes": [], "links": []},
         "issues_found": 0
     })
     return mock_smart_sync
-
 
 class TestCreateFeature:
 
@@ -101,7 +98,7 @@ class TestCreateFeature:
             "message": "Invalid GitLab token"
         }
         # Ensure build_project_map also returns an error to trigger the exit
-        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map_and_sync_files', return_value={
             "status": "error",
             "message": "Build map error"
         })
@@ -142,7 +139,7 @@ class TestCreateFeature:
         # Arrange
         # 1. Mock the services that are not under test
         mocker.patch('gemini_gitlab_workflow.gitlab_service.smart_sync')
-        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={"status": "success", "map_data": {}})
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map_and_sync_files', return_value={"status": "success", "map_data": {}})
         mocker.patch('gemini_gitlab_workflow.ai_service.generate_implementation_plan', return_value={"proposed_issues": []}) # No new issues needed for this test
         
         # 2. Create a temporary directory structure to act as the project root
@@ -248,7 +245,7 @@ class TestGenerateLocalFiles:
         assert expected_contains_link_2 in links
         assert expected_blocks_link in links
 
-        # --- Assertions for Node Descriptions ---
+        # --- Assertions for Node ---
         nodes = project_map.get("nodes", [])
         assert len(nodes) == 3
         
@@ -259,10 +256,6 @@ class TestGenerateLocalFiles:
         for issue_from_plan in mock_ai_plan_for_linking['proposed_issues']:
             temp_id = issue_from_plan['id']
             assert temp_id in nodes_by_id
-            
-            node_in_map = nodes_by_id[temp_id]
-            assert 'description' in node_in_map
-            assert node_in_map['description'] == issue_from_plan['description']
 
 
 class TestUploadStoryMap:
@@ -301,7 +294,7 @@ class TestAnonymization:
         """
         # Arrange
         mocker.patch('gemini_gitlab_workflow.gitlab_service.smart_sync')
-        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map', return_value={"status": "success", "map_data": {}})
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.build_project_map_and_sync_files', return_value={"status": "success", "map_data": {}})
         mocker.patch('gemini_gitlab_workflow.ai_service.get_relevant_context_files', return_value=[])
         
         mock_plan = {

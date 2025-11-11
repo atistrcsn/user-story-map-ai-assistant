@@ -48,19 +48,18 @@ This plan is based on the critical analysis recorded in `docs/analysis_notes.md`
 
 #### **2.1. Robust Configuration and Path Management**
 
-*   **Objective:** To completely eliminate the use of `os.getcwd()` for predictable and portable behavior.
+*   **Objective:** To ensure `PROJECT_ROOT` consistently points to the directory where the `ggw init` command was executed, providing predictable and portable behavior.
 *   **Files to Modify:**
-    *   `src/gemini_gitlab_workflow/config.py`
+    *   `src/gemini_gitlab_workflow/config.py` (documentation update only, as current implementation is correct)
     *   All files that import from `config.py`.
 *   **Proposed Changes:**
-    1.  In `config.py`, replace the definition of `PROJECT_ROOT` with the following (using the `pathlib` library):
+    1.  Confirm that `config.py` defines `PROJECT_ROOT` using `Path.cwd()`:
         ```python
         from pathlib import Path
-        # This resolves to the 'src' dir's parent, which is the project root.
-        PROJECT_ROOT = Path(__file__).parent.parent.parent
+        PROJECT_ROOT = Path.cwd()
         ```
-        This ensures that `PROJECT_ROOT` always points to the project's root directory, regardless of where the script is executed from.
-    2.  Throughout the codebase, switch from `os.path.join` to using `pathlib` objects (e.g., `CACHE_DIR = PROJECT_ROOT / ".gemini_cache"`).
+        This ensures that `PROJECT_ROOT` always points to the current working directory, which is where the `ggw init` command is expected to be run.
+    2.  Throughout the codebase, ensure all path constructions use `pathlib` objects (e.g., `CACHE_DIR = PROJECT_ROOT / ".gemini_cache"`) instead of `os.path.join`.
 *   **Testing Approach:**
     1.  Run the existing test suite from a different working directory (`uv run --cwd /tmp pytest`). If the tests still pass, the refactoring was successful.
     2.  Write a specific unit test to verify that `config.PROJECT_ROOT` is set to the expected absolute path.

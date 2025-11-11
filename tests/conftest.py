@@ -22,8 +22,7 @@ def isolated_filesystem(mocker, tmp_path):
     mocker.patch('gemini_gitlab_workflow.config.DATA_DIR', str(data_dir))
     mocker.patch('gemini_gitlab_workflow.config.CACHE_DIR', str(cache_dir))
     mocker.patch('gemini_gitlab_workflow.config.TIMESTAMPS_CACHE_PATH', str(timestamps_cache_path))
-    mocker.patch('gemini_gitlab_workflow.gitlab_service.TIMESTAMPS_CACHE_PATH', str(timestamps_cache_path))
-    
+        
     # The test will run after this yield, using the patched paths
     yield
     

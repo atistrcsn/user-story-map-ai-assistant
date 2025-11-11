@@ -22,7 +22,8 @@ The system is designed as a command-line interface (CLI) tool (`ggw`) that inter
 
 *   **CLI (`cli.py`):** The user interface, built with `Typer`. It handles command parsing and orchestrates calls to the service layer.
     *   `gemini-cli sync`: Performs a "Smart Sync" to update the local data from GitLab.
-    *   `gemini-cli create feature`: Initiates an interactive workflow to plan a new feature. The command follows the optimized "Enhanced Workflow": 1. Smart Sync. 2. User input. 3. Two-phase AI analysis. 4. Structured, step-by-step dialogue for approval. 5. Local file generation. **6. Robust, transaction-like upload back to GitLab.**
+    *   `gemini-cli create feature`: Initiates an interactive workflow to plan a new feature. The command follows the optimized "Enhanced Workflow": 1. Smart Sync. 2. User input. 3. Two-phase AI analysis. 4. Structured, step-by-step dialogue for approval. 5. Local file generation.
+    *   `gemini-cli upload story-map`: Pushes the locally generated changes to GitLab. During this step, the tool reads the generated `.md` files to get the issue descriptions, ensuring the full content is uploaded.
 *   **GitLab Service (`gitlab_service.py`):** Encapsulates all communication with the GitLab API.
 *   **AI Service (`ai_service.py`):** Manages all interactions with the Gemini AI model, including prompt construction and response parsing.
 *   **Configuration (`config.py`):** Centralized management of paths, API keys, and other settings.
