@@ -97,7 +97,7 @@ def main():
     if config.DATA_DIR.exists():
         shutil.rmtree(config.DATA_DIR)
         print(f"Cleaned up existing {config.DATA_DIR} directory.")
-    config.DATA_DIR.mkdir(exist_ok=True)
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     # Initialize GitLab connection
     try:
