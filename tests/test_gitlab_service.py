@@ -137,15 +137,22 @@ from gemini_gitlab_workflow import config
 
 class TestSmartSyncLogic:
 
+    @pytest.fixture(autouse=True)
+    def setup_method(self, mocker, tmp_path):
+        # Mock CACHE_DIR and TIMESTAMPS_CACHE_PATH to use tmp_path
+        self.mock_cache_dir = tmp_path / "gemini_cache"
+        self.mock_timestamps_cache_path = self.mock_cache_dir / "timestamps_cache.json"
+        mocker.patch('gemini_gitlab_workflow.config.CACHE_DIR', self.mock_cache_dir)
+        mocker.patch('gemini_gitlab_workflow.config.TIMESTAMPS_CACHE_PATH', self.mock_timestamps_cache_path)
+        mocker.patch('gemini_gitlab_workflow.gitlab_service.TIMESTAMPS_CACHE_PATH', self.mock_timestamps_cache_path)
+
     def test_smart_sync_first_run(self, mock_gitlab_project):
-        cache_file = config.TIMESTAMPS_CACHE_PATH
         result = smart_sync()
         assert result["status"] == "success"
         assert result["updated_count"] == 6 # All issues are new
-        assert os.path.exists(cache_file)
+        assert self.mock_timestamps_cache_path.exists()
 
     def test_smart_sync_no_changes(self, mock_gitlab_project):
-        cache_file = config.TIMESTAMPS_CACHE_PATH
         up_to_date_timestamps = {
             "100": "2025-11-05T10:00:00.000Z",
             "101": "2025-11-05T11:00:00.000Z",
@@ -154,7 +161,8 @@ class TestSmartSyncLogic:
             "104": "2025-11-05T14:00:00.000Z",
             "105": "2025-11-06T15:00:00.000Z",
         }
-        with open(cache_file, 'w') as f:
+        self.mock_cache_dir.mkdir(exist_ok=True)
+        with open(self.mock_timestamps_cache_path, 'w') as f:
             json.dump(up_to_date_timestamps, f)
         result = smart_sync()
         assert result["status"] == "success"
@@ -162,7 +170,6 @@ class TestSmartSyncLogic:
         mock_gitlab_project.issues.get.assert_not_called()
 
     def test_smart_sync_with_updates(self, mock_gitlab_project):
-        cache_file = config.TIMESTAMPS_CACHE_PATH
         stale_timestamps = {
             "100": "2025-11-04T00:00:00.000Z", # Old timestamp
             "101": "2025-11-05T11:00:00.000Z",
@@ -171,7 +178,8 @@ class TestSmartSyncLogic:
             "104": "2025-11-05T14:00:00.000Z",
             "105": "2025-11-06T15:00:00.000Z",
         }
-        with open(cache_file, 'w') as f:
+        self.mock_cache_dir.mkdir(exist_ok=True)
+        with open(self.mock_timestamps_cache_path, 'w') as f:
             json.dump(stale_timestamps, f)
         result = smart_sync()
         assert result["status"] == "success"
@@ -179,8 +187,8 @@ class TestSmartSyncLogic:
         mock_gitlab_project.issues.get.assert_called_once_with(100)
 
     def test_smart_sync_corrupted_cache(self, mock_gitlab_project):
-        cache_file = config.TIMESTAMPS_CACHE_PATH
-        with open(cache_file, 'w') as f:
+        self.mock_cache_dir.mkdir(exist_ok=True)
+        with open(self.mock_timestamps_cache_path, 'w') as f:
             f.write("this is not json")
         result = smart_sync()
         assert result["status"] == "success"

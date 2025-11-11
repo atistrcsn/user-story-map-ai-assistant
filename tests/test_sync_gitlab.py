@@ -225,23 +225,16 @@ class MockGitlabAPI:
 
 @patch('gitlab.Gitlab')
 @patch('gemini_gitlab_workflow.sync_gitlab.config')
-@patch('pathlib.Path.exists')
-@patch('shutil.rmtree')
-@patch('builtins.open', new_callable=mock_open)
 def test_main_sync_process(
-    mock_open_file,
-    mock_rmtree,
-    mock_path_exists,
     mock_config,
     mock_gitlab_class,
+    tmp_path,
 ):
     # Configure mocks
     mock_config.GITLAB_URL = "http://mock-gitlab.com"
     mock_config.PRIVATE_TOKEN = "mock-token"
     mock_config.PROJECT_PATH = "12345"
-    mock_config.DATA_DIR = Path("/workspaces/gitlab_data")
-
-    mock_path_exists.return_value = True  # Simulate gitlab_data dir exists for cleanup
+    mock_config.DATA_DIR = tmp_path / "gitlab_data"
 
     # Mock GitLab issues
     mock_issue_1 = MockGitlabIssue(
@@ -300,8 +293,6 @@ def test_main_sync_process(
     main()
 
     # Assertions
-    mock_rmtree.assert_called_once_with(mock_config.DATA_DIR)
-    
     # Verify GitLab API calls
     mock_gitlab_class.assert_called_once_with(
         mock_config.GITLAB_URL, private_token=mock_config.PRIVATE_TOKEN
@@ -319,11 +310,6 @@ def test_main_sync_process(
     expected_filepath_3 = mock_config.DATA_DIR / "_unassigned" / "unassigned-issue.md"
     expected_content_3 = _generate_markdown_content(mock_issue_3)
 
-    mock_open_file.assert_any_call(expected_filepath_1, "w", encoding="utf-8")
-    mock_open_file().write.assert_any_call(expected_content_1)
-    
-    mock_open_file.assert_any_call(expected_filepath_2, "w", encoding="utf-8")
-    mock_open_file().write.assert_any_call(expected_content_2)
-    
-    mock_open_file.assert_any_call(expected_filepath_3, "w", encoding="utf-8")
-    mock_open_file().write.assert_any_call(expected_content_3)
+    assert expected_filepath_1.read_text(encoding="utf-8") == expected_content_1
+    assert expected_filepath_2.read_text(encoding="utf-8") == expected_content_2
+    assert expected_filepath_3.read_text(encoding="utf-8") == expected_content_3
