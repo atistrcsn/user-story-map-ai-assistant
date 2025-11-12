@@ -35,7 +35,17 @@ def set_env_vars(monkeypatch):
     # Clear the lru_cache for get_gitlab_client before each test
     get_gitlab_client.cache_clear()
 
-def test_get_gitlab_client_success(mock_gitlab_instance):
+@pytest.fixture
+def mock_gitlab_config():
+    """Fixture to mock GitlabConfig."""
+    with patch('gemini_gitlab_workflow.gitlab_client.GitlabConfig') as mock_config:
+        mock_config.return_value.url = "https://gitlab.example.com"
+        mock_config.return_value.private_token = "fake_token"
+        mock_config.return_value.project_id = "123"
+        mock_config.return_value.board_id = "4"
+        yield mock_config
+
+def test_get_gitlab_client_success(mock_gitlab_instance, mock_gitlab_config):
     """Tests successful GitLab client initialization."""
     client = get_gitlab_client()
     mock_gitlab_instance.auth.assert_called_once()
@@ -44,10 +54,11 @@ def test_get_gitlab_client_success(mock_gitlab_instance):
 def test_get_gitlab_client_missing_env_vars(monkeypatch):
     """Tests that client initialization fails if env vars are missing."""
     monkeypatch.delenv("GGW_GITLAB_URL")
-    with pytest.raises(ValueError, match="must be set"):
+    # The actual error message from the config validation is more specific
+    with pytest.raises(ValueError, match="Essential GitLab configuration"):
         get_gitlab_client()
 
-def test_get_gitlab_client_auth_fails(mock_gitlab_instance):
+def test_get_gitlab_client_auth_fails(mock_gitlab_instance, mock_gitlab_config):
     """Tests that client initialization fails if gitlab.auth() fails."""
     mock_gitlab_instance.auth.side_effect = gitlab.exceptions.GitlabAuthenticationError("Auth failed")
     with pytest.raises(ConnectionError, match="Auth failed"):

@@ -28,9 +28,10 @@
     },
     "general": {
         "sessionRetention": {
-            "enabled": true
+            "enabled": true,
+            "maxAge": "7d"
         },
-        "enablePromptCompletion": true
+        "enablePromptCompletion": false
     },
     "context": {
         "loadMemoryFromIncludeDirectories": true

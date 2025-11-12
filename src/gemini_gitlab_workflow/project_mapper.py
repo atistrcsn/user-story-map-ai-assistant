@@ -46,13 +46,19 @@ def build_project_map(project_id: str) -> dict:
             continue
 
         if "Type::Epic" in issue.labels:
-            epic_map[issue.iid] = relative_filepath.parent
+            # Store the issue title along with the path for the fallback mechanism
+            epic_map[issue.iid] = {"path": relative_filepath.parent, "title": issue.title}
 
         file_system_repo.write_issue_file(relative_filepath, issue)
         nodes_data.append({
             "id": issue.iid, "title": issue.title, "type": "Issue", "state": issue.state,
             "web_url": issue.web_url, "labels": issue.labels, "local_path": str(relative_filepath)
         })
+
+    # Create a reverse map from title to IID for the Epic label fallback
+    epic_title_to_iid_map = {
+        details["title"].lower(): iid for iid, details in epic_map.items()
+    }
 
     # Pass 2: Process Stories and their relationships
     for issue in issues_list:
@@ -62,22 +68,36 @@ def build_project_map(project_id: str) -> dict:
         parent_epic_iid = None
         parent_epic_path = None
 
+        # Modern Approach: Check for "relates_to" issue links first
         try:
             for link in gitlab_client.get_issue_links(project_id, issue.iid):
                 if link.iid in all_issues_map and "Type::Epic" in all_issues_map[link.iid].labels:
                     parent_epic_iid = link.iid
-                    parent_epic_path = epic_map.get(parent_epic_iid)
+                    parent_epic_path = epic_map.get(parent_epic_iid, {}).get("path")
                     break
         except gitlab.exceptions.GitlabHttpError as e:
             print(f"[WARN] Could not retrieve links for issue {issue.iid}: {e}")
 
+        # Backwards Compatibility: If no link found, check for legacy "Epic::" label
+        if not parent_epic_iid:
+            for label in issue.labels:
+                if label.startswith("Epic::"):
+                    epic_title = label.split("::", 1)[1].strip().lower()
+                    found_iid = epic_title_to_iid_map.get(epic_title)
+                    if found_iid:
+                        parent_epic_iid = found_iid
+                        parent_epic_path = epic_map.get(found_iid, {}).get("path")
+                        print(f"[INFO] Found legacy epic link for Story #{issue.iid} -> Epic '{epic_title}' (#{parent_epic_iid})")
+                        break
+        
         story_filename = f"story-{file_system_repo._slugify(issue.title)}.md"
         if parent_epic_path:
             relative_filepath = parent_epic_path / story_filename
-            link_tuple = (parent_epic_iid, issue.iid, "contains")
+            # Ensure IDs are integers and link is unique before adding
+            link_tuple = (int(parent_epic_iid), int(issue.iid), "contains")
             if link_tuple not in unique_links_set:
                 unique_links_set.add(link_tuple)
-                links_data.append({"source": parent_epic_iid, "target": issue.iid, "type": "contains"})
+                links_data.append({"source": int(parent_epic_iid), "target": int(issue.iid), "type": "contains"})
         else:
             relative_filepath = file_system_repo.get_issue_filepath(issue.title, issue.labels)
 
@@ -101,7 +121,11 @@ def build_project_map(project_id: str) -> dict:
                 link_tuple = (rel["source"], rel["target"], rel["type"])
                 if link_tuple not in unique_links_set:
                     unique_links_set.add(link_tuple)
-                    links_data.append(rel)
+                    links_data.append({
+                        "source": int(rel["source"]),
+                        "target": int(rel["target"]),
+                        "type": rel["type"]
+                    })
 
     project_map_data = {
         "doctrine": {"gemini_md_path": "/docs/spec/GEMINI.md", "gemini_md_commit_hash": "TODO"},

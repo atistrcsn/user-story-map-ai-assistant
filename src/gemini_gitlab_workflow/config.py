@@ -1,5 +1,10 @@
 import os
 from pathlib import Path
+from dataclasses import dataclass, field
+import logging
+
+# --- Setup Logging ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Centralized Path and Configuration Definitions ---
 
@@ -22,3 +27,30 @@ TIMESTAMPS_CACHE_PATH = CACHE_DIR / "timestamps.json"
 # Allows overriding the default models via environment variables.
 GEMINI_SMART_MODEL = os.getenv("GGW_GEMINI_SMART_MODEL", "gemini-2.5-pro")
 GEMINI_FAST_MODEL = os.getenv("GGW_GEMINI_FAST_MODEL", "gemini-2.5-flash-lite")
+
+# --- GitLab Configuration ---
+@dataclass
+class GitlabConfig:
+    """A dataclass to hold all GitLab-related configuration."""
+    url: str = field(default_factory=lambda: os.getenv("GGW_GITLAB_URL", ""))
+    private_token: str = field(default_factory=lambda: os.getenv("GGW_GITLAB_PRIVATE_TOKEN", ""))
+    project_id: str = field(default_factory=lambda: os.getenv("GGW_GITLAB_PROJECT_ID", ""))
+    board_id: int | None = field(default_factory=lambda: os.getenv("GGW_GITLAB_BOARD_ID"))
+
+    def __post_init__(self):
+        """Validate that essential GitLab configuration is present."""
+        if not self.url or not self.private_token or not self.project_id:
+            raise ValueError(
+                "Essential GitLab configuration (GGW_GITLAB_URL, "
+                "GGW_GITLAB_PRIVATE_TOKEN, GGW_GITLAB_PROJECT_ID) is missing. "
+                "Please check your .env file or environment variables."
+            )
+        if self.board_id:
+            try:
+                self.board_id = int(self.board_id)
+            except (ValueError, TypeError):
+                logging.warning(
+                    f"GGW_GITLAB_BOARD_ID is not a valid integer ('{self.board_id}'). "
+                    "Disabling board-related features."
+                )
+                self.board_id = None

@@ -40,6 +40,9 @@ GEMINI_WORKER_API_KEY=""
 # Optional: Specify the directory for GitLab data relative to the project root.
 # Defaults to "gitlab_data" if not set.
 # GGW_DATA_DIR="gitlab_data"
+
+# Optional: Specify the GitLab Board ID for automatic story reordering.
+# GGW_GITLAB_BOARD_ID=""
 """
     try:
         with open(env_path, "w") as f:
@@ -111,7 +114,7 @@ def _generate_local_files(plan: dict, console: Console):
         with open(config.PROJECT_MAP_PATH, 'r') as f:
             project_map = yaml.safe_load(f)
 
-    existing_titles = {node['title'] for node in project_map.get("nodes", [])}
+    existing_titles = {node['title']: node['id'] for node in project_map.get("nodes", [])}
     new_nodes, new_links, skipped_count = [], [], 0
     
     proposed_issues = plan.get("proposed_issues", [])
@@ -144,7 +147,7 @@ def _generate_local_files(plan: dict, console: Console):
                         "id": issue["id"]
                     }
 
-    # --- Pass 2: Generate all files, creating 'contains' links for stories ---
+    # --- Pass 2: Generate all files, creating 'contains' and 'blocks' links ---
     for issue in proposed_issues:
         title = issue["title"]
         if title in existing_titles:
@@ -169,14 +172,9 @@ def _generate_local_files(plan: dict, console: Console):
             if parent_epic_info:
                 parent_epic_path = parent_epic_info["path"]
                 parent_epic_id = parent_epic_info["id"]
-
                 story_filename = f"story-{_slugify(title)}.md"
                 relative_filepath = parent_epic_path / story_filename
-                console.print(f"[DIAG] Story '{title}' mapped to Epic path: {relative_filepath}")
-                
                 new_links.append({"source": parent_epic_id, "target": temp_id, "type": "contains"})
-                console.print(f"[DIAG] Created 'contains' link from Epic '{parent_epic_id}' to Story '{temp_id}'")
-
 
         # If path wasn't determined above, use the default logic
         if not relative_filepath:
@@ -198,16 +196,45 @@ def _generate_local_files(plan: dict, console: Console):
         new_node = {"id": temp_id, "title": title, "type": "Issue", "state": "opened", "labels": labels, "local_path": str(relative_filepath)}
         new_nodes.append(new_node)
         
-        # Handle dependencies (unchanged)
+        # Handle dependencies
         dependencies = issue.get("dependencies", {})
-        if dependencies and "blocks" in dependencies:
-            target_ids = dependencies["blocks"]
-            if not isinstance(target_ids, list): target_ids = [target_ids]
-            for target_id in target_ids: new_links.append({"source": temp_id, "target": target_id, "type": "blocks"})
-        if dependencies and "is_blocked_by" in dependencies:
-            blocker_ids = dependencies["is_blocked_by"]
-            if not isinstance(blocker_ids, list): blocker_ids = [blocker_ids]
-            for blocker_id in blocker_ids: new_links.append({"source": blocker_id, "target": temp_id, "type": "blocks"})
+        
+        def _to_int_if_possible(value):
+            """Helper to convert a value to int if it's a numeric string."""
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return value
+
+        def resolve_and_add_link(source, target_ref, link_type):
+            target_id = None
+            # Check if target is another new issue by its temp ID
+            if any(p_issue['id'] == target_ref for p_issue in proposed_issues):
+                target_id = target_ref
+            # Check if target is an existing issue by its title
+            elif target_ref in existing_titles:
+                target_id = existing_titles[target_ref]
+            
+            if target_id:
+                # Ensure IDs are converted to integers if they are numeric
+                source_val = _to_int_if_possible(source)
+                target_val = _to_int_if_possible(target_id)
+                new_links.append({"source": source_val, "target": target_val, "type": link_type})
+            else:
+                console.print(f"[yellow]Warning: Could not resolve dependency '{target_ref}'. Link not created.[/yellow]")
+
+        if "blocks" in dependencies:
+            target_refs = dependencies["blocks"]
+            if not isinstance(target_refs, list): target_refs = [target_refs]
+            for target_ref in target_refs:
+                resolve_and_add_link(temp_id, target_ref, "blocks")
+
+        if "is_blocked_by" in dependencies:
+            blocker_refs = dependencies["is_blocked_by"]
+            if not isinstance(blocker_refs, list): blocker_refs = [blocker_refs]
+            for blocker_ref in blocker_refs:
+                # Note the reversed source/target for "is_blocked_by"
+                resolve_and_add_link(blocker_ref, temp_id, "blocks")
 
     if skipped_count == len(proposed_issues):
         console.print("[bold yellow]All proposed issues already exist. No changes made.[/bold yellow]")
@@ -407,7 +434,6 @@ def upload_story_map():
         console.print("[green]✓ Story map successfully uploaded to GitLab![/green]")
         console.print(f"  Labels created: {upload_result['labels_created']}")
         console.print(f"  Issues created: {upload_result['issues_created']}")
-        console.print(f"  Notes with links created: {upload_result['notes_with_links_created']}")
         console.print(f"  Issue links created: {upload_result['issue_links_created']}")
     else:
         console.print(f"[bold red]Error uploading story map:[/bold red] {upload_result['message']}")

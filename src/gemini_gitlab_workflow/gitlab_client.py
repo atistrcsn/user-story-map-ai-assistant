@@ -1,32 +1,49 @@
 import os
 import gitlab
 from functools import lru_cache
+from .config import GitlabConfig
 
 @lru_cache(maxsize=1)
 def get_gitlab_client():
     """
-    Initializes and returns a memoized GitLab client instance.
+    Initializes and returns a memoized GitLab client instance using GitlabConfig.
     Raises ValueError if configuration is missing.
     Raises ConnectionError if authentication fails.
     """
-    gitlab_url = os.getenv("GGW_GITLAB_URL")
-    gitlab_private_token = os.getenv("GGW_GITLAB_PRIVATE_TOKEN")
-    if not gitlab_url or not gitlab_private_token:
-        raise ValueError("Error: GGW_GITLAB_URL and GGW_GITLAB_PRIVATE_TOKEN must be set.")
     try:
-        gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_private_token)
+        config = GitlabConfig()
+        gl = gitlab.Gitlab(config.url, private_token=config.private_token)
         gl.auth()
         return gl
+    except ValueError as e:
+        # Re-raise the specific config error from the dataclass
+        raise ValueError(f"GitLab configuration error: {e}") from e
     except gitlab.exceptions.GitlabError as e:
         raise ConnectionError(f"Error connecting to GitLab: {e}") from e
 
 def get_project(project_id: str):
-    """Gets a project object from GitLab."""
+    """Gets a project object from GitLab by its ID."""
     gl = get_gitlab_client()
     return gl.projects.get(project_id)
 
+def get_project_board(project_id: str):
+    """Gets the configured board object from the project."""
+    config = GitlabConfig()
+    if not config.board_id:
+        return None
+    project = get_project(project_id)
+    try:
+        return project.boards.get(config.board_id)
+    except gitlab.exceptions.GitlabGetError:
+        # The board with the given ID was not found
+        return None
+
 def get_project_issues(project_id: str, **kwargs):
-    """Lists all issues for a given project."""
+    """
+    Lists all issues for a given project.
+    Accepts any filter arguments supported by the python-gitlab library's
+    issues.list() method, such as 'state', 'labels', or 'list_id'.
+    """
     project = get_project(project_id)
     return project.issues.list(**kwargs)
 
@@ -84,3 +101,16 @@ def create_issue_link(project_id: str, source_issue_iid: int, target_issue_iid: 
         'link_type': link_type
     }
     return source_issue.links.create(link_data)
+
+def reorder_issues_in_board_list(project_id: str, board_list_id: int, new_order_ids: list[int]):
+    """
+    Reorders issues within a specific board list using the correct reorder() method.
+    This is the mandatory way to reorder issues on a board.
+    It follows the correct object hierarchy: Project -> Board -> BoardList.
+    """
+    board = get_project_board(project_id)
+    if not board:
+        raise ValueError(f"Board not found for project {project_id}. Cannot reorder.")
+    
+    board_list = board.lists.get(board_list_id)
+    return board_list.reorder(issues=new_order_ids)

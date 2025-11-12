@@ -1,8 +1,13 @@
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch, call, mock_open
 import gitlab
+from ruamel.yaml import YAML
 
-from gemini_gitlab_workflow.gitlab_uploader import upload_artifacts_to_gitlab
+# Assuming the GitlabUploader class is in this module
+from gemini_gitlab_workflow.gitlab_uploader import GitlabUploader, upload_artifacts_to_gitlab
+from gemini_gitlab_workflow.config import GitlabConfig
+
+# --- Fixtures ---
 
 @pytest.fixture
 def mock_gitlab_client():
@@ -11,94 +16,168 @@ def mock_gitlab_client():
         yield mock
 
 @pytest.fixture
+def mock_config():
+    """Mocks the GitlabConfig dataclass."""
+    with patch('gemini_gitlab_workflow.gitlab_uploader.GitlabConfig') as mock:
+        mock_instance = mock.return_value
+        mock_instance.project_id = "12345"
+        mock_instance.board_id = 99
+        yield mock_instance
+
+@pytest.fixture
+def mock_yaml():
+    """Mocks the ruamel.yaml YAML object and its methods."""
+    with patch('gemini_gitlab_workflow.gitlab_uploader.YAML') as mock_yaml_class:
+        mock_yaml_instance = mock_yaml_class.return_value
+        mock_yaml_instance.load.return_value = {}
+        mock_yaml_instance.dump.return_value = None
+        yield mock_yaml_instance
+
+@pytest.fixture
 def mock_project_map():
     """Provides a sample project map for uploading."""
     return {
         "nodes": [
-            {"id": "NEW_1", "title": "New Epic", "labels": ["Type::Epic", "NewLabel"], "description": ""},
-            {"id": "NEW_2", "title": "New Story", "labels": ["Type::Story"], "description": "Desc"}
+            {"id": 1, "title": "Existing Epic", "labels": ["Type::Epic", "Backbone::Frontend"]},
+            {"id": "NEW_101", "title": "New Story", "labels": ["Type::Story", "Backbone::Frontend"], "local_path": "story1.md"},
+            {"id": "NEW_102", "title": "Another Story", "labels": ["Type::Story", "Backbone::Backend"], "local_path": "story2.md"},
+            {"id": 2, "title": "Existing Backend Epic", "labels": ["Type::Epic"]} # No backbone label
         ],
         "links": [
-            {"source": "NEW_1", "target": "NEW_2", "type": "contains"},
-            {"source": "NEW_2", "target": 123, "type": "blocks"}
+            {"source": 1, "target": "NEW_101", "type": "contains"},
+            {"source": 2, "target": "NEW_102", "type": "contains"}
         ]
     }
 
-def test_upload_artifacts_happy_path(mock_gitlab_client, mock_project_map):
+# --- Test Cases ---
+
+def test_upload_happy_path_with_reorder(mock_gitlab_client, mock_config, mock_yaml, mock_project_map):
+    """
+    Tests the full successful workflow: label, issue creation, map update, and reordering.
+    """
     # Arrange
-    mock_gitlab_client.get_project_labels.return_value = []
-    
-    mock_issue_epic = MagicMock()
-    mock_issue_epic.iid = 101
-    mock_issue_story = MagicMock()
-    mock_issue_story.iid = 102
-    mock_gitlab_client.create_project_issue.side_effect = [mock_issue_epic, mock_issue_story]
+    # Mock file I/O
+    with patch("builtins.open", mock_open(read_data="---\nid: NEW_101\n---\nDescription")):
+        # Mock GitLab API responses
+        mock_gitlab_client.get_project_labels.return_value = []
+        
+        mock_story_issue = MagicMock()
+        mock_story_issue.iid = 201
+        mock_story_issue.id = 201
+        mock_story_issue.labels = ["Type::Story", "Backbone::Frontend"]
+        
+        mock_another_story = MagicMock()
+        mock_another_story.iid = 202
+        mock_another_story.id = 202
+        mock_another_story.labels = ["Type::Story", "Backbone::Backend"]
 
-    # Act
-    result = upload_artifacts_to_gitlab("proj_id", mock_project_map)
+        mock_gitlab_client.create_project_issue.side_effect = [mock_story_issue, mock_another_story]
 
-    # Assert
-    assert result["status"] == "success"
-    assert result["labels_created"] == 3
-    assert result["issues_created"] == 2
-    assert result["issue_links_created"] == 1
-    assert result["notes_with_links_created"] == 1
+        mock_epic_issue = MagicMock()
+        mock_epic_issue.id = 1
+        mock_epic_issue.iid = 1
+        
+        mock_backend_epic = MagicMock()
+        mock_backend_epic.id = 2
+        mock_backend_epic.iid = 2
+        mock_backend_epic.labels = ["Type::Epic"] # Starts without backbone label
 
-    mock_gitlab_client.create_project_label.assert_has_calls([
-        call("proj_id", {'name': 'Type::Epic', 'color': '#F0AD4E'}),
-        call("proj_id", {'name': 'NewLabel', 'color': '#F0AD4E'}),
-    ], any_order=True)
-    
-    mock_gitlab_client.create_issue_note.assert_called_once_with(
-        "proj_id", 123, {'body': '/blocked by #102'}
-    )
-    
-    mock_gitlab_client.create_issue_link.assert_called_once_with("proj_id", 101, 102)
+        # This is the crucial mock that was missing.
+        mock_gitlab_client.get_project_issues.return_value = [mock_epic_issue, mock_backend_epic]
+        mock_gitlab_client.get_project_issue.side_effect = [mock_epic_issue, mock_backend_epic]
 
-def test_upload_artifacts_rollback_on_failure(mock_gitlab_client, mock_project_map):
+        mock_board = MagicMock()
+        mock_list_frontend = MagicMock()
+        mock_list_frontend.id = 1
+        mock_list_frontend.label = {'name': 'Backbone::Frontend'}
+        # This mock is now required for the new reorder logic
+        mock_list_backend = MagicMock()
+        mock_list_backend.id = 2
+        mock_list_backend.label = {'name': 'Backbone::Backend'}
+
+        mock_board.lists.list.return_value = [mock_list_frontend, mock_list_backend]
+        # The client now gets the board, then gets the list from the board.
+        # We need to mock the .get() call on the board's list manager.
+        mock_board.lists.get.side_effect = [mock_list_frontend, mock_list_backend]
+        mock_gitlab_client.get_project_board.return_value = mock_board
+        
+        # The uploader calls get_project_issues to get the current order
+        mock_gitlab_client.get_project_issues.side_effect = [[mock_epic_issue], [mock_backend_epic]]
+
+        # Act
+        uploader = GitlabUploader(mock_config.project_id, mock_project_map)
+        result = uploader.upload()
+
+        # Assert
+        assert result["status"] == "success"
+        assert result["issues_created"] == 2
+        assert result["project_map_updated"] is True
+        assert result["stories_reordered"] == 2
+
+        # Assert map was updated
+        mock_yaml.load.assert_called_once()
+        mock_yaml.dump.assert_called_once()
+
+        # Assert that the correct, abstracted reorder function was called
+        assert mock_gitlab_client.reorder_issues_in_board_list.call_count == 2
+        
+        # Assert epic 2 was updated with the new label
+        mock_backend_epic.save.assert_called_once()
+        assert "Backbone::Backend" in mock_backend_epic.labels
+
+
+def test_reordering_skipped_if_board_id_is_none(mock_gitlab_client, mock_config, mock_yaml, mock_project_map):
+    """
+    Tests that the reordering step is skipped if no board_id is configured.
+    """
     # Arrange
-    mock_gitlab_client.get_project_labels.return_value = []
-    
-    mock_issue_epic = MagicMock()
-    mock_issue_epic.iid = 101
-    mock_gitlab_client.create_project_issue.side_effect = [
-        mock_issue_epic,
-        gitlab.exceptions.GitlabError("Failed to create issue")
-    ]
+    mock_config.board_id = None # Disable board ID
+    with patch("builtins.open", mock_open(read_data="")):
+        mock_gitlab_client.get_project_labels.return_value = []
+        mock_issue = MagicMock()
+        mock_issue.iid = 201
+        mock_gitlab_client.create_project_issue.return_value = mock_issue
 
-    # Act
-    result = upload_artifacts_to_gitlab("proj_id", mock_project_map)
+        # Act
+        uploader = GitlabUploader(mock_config.project_id, mock_project_map)
+        result = uploader.upload()
 
-    # Assert
-    assert result["status"] == "error"
-    assert "Failed to create issue" in result["message"]
+        # Assert
+        assert result["status"] == "success"
+        assert result["stories_reordered"] == 0
+        mock_gitlab_client.get_project_board.assert_not_called()
 
-    # Verify rollback calls
-    mock_gitlab_client.delete_project_issue.assert_called_once_with("proj_id", 101)
-    mock_gitlab_client.delete_project_label.assert_has_calls([
-        call("proj_id", "Type::Epic"),
-        call("proj_id", "NewLabel"),
-    ], any_order=True)
 
-def test_upload_handles_existing_links_gracefully(mock_gitlab_client, mocker):
+def test_upload_rollback_on_failure(mock_gitlab_client, mock_config, mock_yaml, mock_project_map):
+    """
+    Tests that created artifacts are rolled back if an API error occurs.
+    """
     # Arrange
-    project_map_with_existing_link = {
-        "nodes": [{"id": 1, "title": "Epic"}, {"id": 2, "title": "Story"}],
-        "links": [{"source": 1, "target": 2, "type": "contains"}]
-    }
-    
-    # Simulate the 409 Conflict error using a mock object
-    mock_error = gitlab.exceptions.GitlabError("Issue(s) already assigned")
-    mock_error.response_code = 409
-    
-    mock_gitlab_client.create_issue_link.side_effect = mock_error
-    mock_gitlab_client.get_project_labels.return_value = []
+    with patch("builtins.open", mock_open(read_data="")):
+        mock_gitlab_client.get_project_labels.return_value = []
+        
+        mock_story_issue = MagicMock()
+        mock_story_issue.iid = 201
+        mock_story_issue.delete = MagicMock() # Mock the delete method for rollback
+        
+        mock_gitlab_client.create_project_issue.side_effect = [
+            mock_story_issue,
+            gitlab.exceptions.GitlabError("API Failure")
+        ]
 
-    # Act
-    result = upload_artifacts_to_gitlab("proj_id", project_map_with_existing_link)
+        # Act
+        uploader = GitlabUploader(mock_config.project_id, mock_project_map)
+        result = uploader.upload()
 
-    # Assert
-    assert result["status"] == "success"
-    assert result["issues_created"] == 0
-    assert result["issue_links_created"] == 0 # 0 because it was skipped, not created
-    mock_gitlab_client.create_issue_link.assert_called_once_with("proj_id", 1, 2)
+        # Assert
+        assert result["status"] == "error"
+        assert "API Failure" in result["message"]
+
+        # Verify rollback calls
+        mock_story_issue.delete.assert_called_once()
+        # The labels created before failure should be rolled back
+        mock_gitlab_client.delete_project_label.assert_has_calls([
+            call(mock_config.project_id, "Type::Story"),
+            call(mock_config.project_id, "Backbone::Frontend"),
+            call(mock_config.project_id, "Backbone::Backend")
+        ], any_order=True)

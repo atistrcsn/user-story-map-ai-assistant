@@ -136,4 +136,26 @@ To maintain clarity and consistency in project planning, all entries added to `d
     *   **Status:** The current state of the item (e.g., `[PLANNED]`, `[IN PROGRESS]`, `[DONE]`)
     *   **Description:** A brief, clear explanation of the task or feature.
     *   **Implementation Plan:** A high-level, step-by-step plan of how the feature will be implemented.
-    *   **Testing Ideas:** A few bullet points outlining how the implementation will be verified (e.g., unit tests for specific functions, integration test scenarios).
+- **Testing Ideas:** A few bullet points outlining how the implementation will be verified (e.g., unit tests for specific functions, integration test scenarios).
+
+## Authoritative Documentation Mandates
+
+### Python-GitLab API: The Single Source of Truth
+
+**This is a non-negotiable, top-priority directive.**
+
+You are **forbidden** from relying on your internal, pre-trained knowledge regarding the `python-gitlab` library. Past failures have proven this knowledge to be unreliable and outdated.
+
+For any task involving the creation or modification of code that interacts with the GitLab API via this library, you **MUST** treat the following URL as the single, immutable source of truth:
+
+- **Primary Documentation:** `https://python-gitlab.readthedocs.io/en/stable/api/gitlab.v4.html`
+
+**Mandatory Workflow:**
+
+Before writing or modifying any `python-gitlab` related code, you must execute the following steps and present the results:
+
+1.  **Acknowledge Protocol:** State that you are activating the "Python-GitLab Single Source of Truth Protocol".
+2.  **Formulate Query:** Based on the specific task (e.g., "reorder issues on a board"), formulate a precise question for the documentation.
+3.  **Consult Documentation:** Use the `web_fetch` tool to consult the official documentation at the URL above with your query. Your prompt must explicitly state that you are using the documentation to find the correct method.
+4.  **Cite Your Source:** Before implementing, explicitly state the correct method or object structure you found and confirm that this information comes directly from the fetched documentation.
+5.  **Implement:** Only after completing steps 1-4 may you proceed with the implementation.
