@@ -34,7 +34,11 @@
         "enablePromptCompletion": false
     },
     "context": {
-        "loadMemoryFromIncludeDirectories": true
+        "loadMemoryFromIncludeDirectories": true,
+        "fileFiltering": {
+            "respectGitIgnore": false,
+            "respectGeminiIgnore": true
+        }
     },
     "tools": {
         "shell": {

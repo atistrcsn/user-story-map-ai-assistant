@@ -126,9 +126,12 @@ class GitlabUploader:
     def _create_links(self):
         """Creates issue links (e.g., 'contains', 'blocks') in GitLab."""
         logging.info("Step 3: Creating issue links...")
-        all_links = self.project_map.get("links", [])
+        links_to_create = [
+            link for link in self.project_map.get("links", [])
+            if str(link.get("source", "")).startswith("NEW_") or str(link.get("target", "")).startswith("NEW_")
+        ]
         
-        for link in all_links:
+        for link in links_to_create:
             source_iid = self._resolve_iid(link.get("source"))
             target_iid = self._resolve_iid(link.get("target"))
             link_type = link.get("type")
@@ -249,35 +252,16 @@ class GitlabUploader:
                 time.sleep(0.1)
 
             try:
-                # THIS IS THE FINAL, CORRECT IMPLEMENTATION.
-                # Issues for a board list are fetched from the PROJECT's issues manager,
-                # filtered by the `list_id`.
-                current_issues = gitlab_client.get_project_issues(
-                    self.project_id,
-                    list_id=target_list_obj.id,
-                    all=True
-                )
-                current_order_ids = [issue.id for issue in current_issues]
-
-                if epic_issue.id not in current_order_ids:
-                    logging.warning(f"Epic #{epic_issue.iid} (Global ID: {epic_issue.id}) not found in board list '{target_list_obj.label['name']}'.")
-                    continue
-
-                new_order_ids = [id for id in current_order_ids if id != story_issue.id]
+                logging.info(f"  - Reordering story #{story_issue.iid} to be after epic #{epic_issue.iid} in list '{target_list_obj.label['name']}'.")
                 
-                try:
-                    epic_position = new_order_ids.index(epic_issue.id)
-                    new_order_ids.insert(epic_position + 1, story_issue.id)
-                    
-                    logging.info(f"  - Reordering story #{story_issue.iid} to be after epic #{epic_issue.iid} in list '{target_list_obj.label['name']}'.")
-                    
-                    gitlab_client.reorder_issues_in_board_list(self.project_id, target_list_obj.id, new_order_ids)
-                    
-                    logging.info(f"  - Successfully reordered story #{story_issue.iid}.")
-
-                except ValueError:
-                    logging.error(f"Could not find epic #{epic_issue.iid} in the list to reorder after. Skipping.")
-
+                # Correctly call the new client function with the story's IID and the epic's global ID.
+                gitlab_client.move_issue_in_board_list(
+                    project_id=self.project_id,
+                    issue_iid=story_issue.iid,
+                    move_before_id=epic_issue.id  # Use the global ID as required
+                )
+                
+                logging.info(f"  - Successfully reordered story #{story_issue.iid}.")
                 time.sleep(0.1)
 
             except gitlab.exceptions.GitlabError as e:

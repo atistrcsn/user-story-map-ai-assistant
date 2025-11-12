@@ -102,15 +102,17 @@ def create_issue_link(project_id: str, source_issue_iid: int, target_issue_iid: 
     }
     return source_issue.links.create(link_data)
 
-def reorder_issues_in_board_list(project_id: str, board_list_id: int, new_order_ids: list[int]):
+def move_issue_in_board_list(project_id: str, issue_iid: int, move_before_id: int):
     """
-    Reorders issues within a specific board list using the correct reorder() method.
-    This is the mandatory way to reorder issues on a board.
-    It follows the correct object hierarchy: Project -> Board -> BoardList.
+    Moves an issue to a new position within a board list.
+
+    Args:
+        project_id: The ID of the project.
+        issue_iid: The IID of the issue to move.
+        move_before_id: The global ID of the issue to move it before.
     """
-    board = get_project_board(project_id)
-    if not board:
-        raise ValueError(f"Board not found for project {project_id}. Cannot reorder.")
-    
-    board_list = board.lists.get(board_list_id)
-    return board_list.reorder(issues=new_order_ids)
+    gl = get_gitlab_client()
+    project = gl.projects.get(project_id)
+    issue = project.issues.get(issue_iid)
+    issue.reorder(move_before_id=move_before_id)
+    return issue

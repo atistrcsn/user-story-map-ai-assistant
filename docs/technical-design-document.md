@@ -46,6 +46,7 @@ The system is designed as a command-line interface (CLI) tool (`ggw`) that inter
     *   Upon approval, the tool creates the new Markdown files and updates the `project_map.yaml`.
 7.  **Upload:**
     *   The user runs `ggw upload` to push the changes to GitLab.
+    *   **Implementation Note on Board Ordering:** It was discovered that the GitLab board UI displays items in a visually inverted order compared to the API's list order. Therefore, to place a new story *under* its parent epic on the board, the `gitlab_uploader` uses the `move_before_id` parameter in the API call, positioning the story *before* the epic in the list, which results in the correct visual hierarchy.
 
 ## III. Testing Strategy
 

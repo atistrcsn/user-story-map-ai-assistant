@@ -61,12 +61,17 @@ graph TD
 /workspaces
 ├── src/                     # Source code for the gemini-gitlab-workflow package
 │   └── gemini_gitlab_workflow/
-│       ├── __init__.py      # Marks the directory as a Python package
-│       ├── ai_service.py    # AI interaction service
-│       ├── config.py        # Centralized configuration system
-│       ├── gemini_cli.py    # Command-line interface (CLI)
-│       ├── gitlab_service.py# GitLab API interaction service
-│       └── sync_gitlab.py   # Main synchronization logic
+│       ├── __init__.py
+│       ├── ai_service.py
+│       ├── cli.py
+│       ├── config.py
+│       ├── file_system_repo.py
+│       ├── gemini_tools.py
+│       ├── gitlab_client.py
+│       ├── gitlab_service.py
+│       ├── gitlab_uploader.py
+│       ├── project_mapper.py
+│       └── sanitizer.py
 ├── tests/                   # Unit and integration tests
 │   ├── conftest.py          # Pytest configuration
 │   ├── test_ai_service.py

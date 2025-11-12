@@ -157,6 +157,8 @@ This feature enables a user to provide a high-level idea and have the AI assista
 1.  **Fix Incorrect Story File Path:** Modified `cli.py` to correctly identify existing epics from the `project_map.yaml` and place new stories within their corresponding epic directories. This resolves the issue where stories for existing epics were created at the wrong level.
 2.  **Remove Description from `project_map.yaml`:** Modified `cli.py` to stop adding the full `description` field to the `project_map.yaml` for new issues. This keeps the map lightweight and focused on structure.
 3.  **Upload Description from File:** Modified `gitlab_uploader.py` to read the description directly from the content of the local `.md` file during the upload process. This ensures that the full, detailed description is correctly uploaded to the GitLab issue.
+4.  **Filter for New Links:** The upload process in `gitlab_uploader.py` was optimized to only process links where the source or target is a new issue. This prevents the system from creating duplicate "blocks" comments for existing relationships.
+5.  **Correct Board Ordering:** The reordering logic was updated to use `move_before_id` instead of `move_after_id`. This compensates for the GitLab board's inverted visual display, ensuring stories now correctly appear *under* their parent epics.
 
 **Testing Ideas:**
 

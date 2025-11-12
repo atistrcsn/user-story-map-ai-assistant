@@ -160,3 +160,17 @@ def test_create_issue_link(mock_gitlab_instance):
     create_issue_link("123", 456, 789)
     expected_link_data = {'target_project_id': '123', 'target_issue_iid': 789, 'link_type': 'relates_to'}
     mock_issue.links.create.assert_called_once_with(expected_link_data)
+
+def test_move_issue_in_board_list(mock_gitlab_instance):
+    """Tests moving an issue before another in a board list."""
+    mock_issue_to_move = MagicMock()
+    mock_project = MagicMock()
+    mock_project.issues.get.return_value = mock_issue_to_move
+    mock_gitlab_instance.projects.get.return_value = mock_project
+
+    from gemini_gitlab_workflow.gitlab_client import move_issue_in_board_list
+    move_issue_in_board_list(project_id="123", issue_iid=10, move_before_id=99)
+
+    mock_gitlab_instance.projects.get.assert_called_once_with("123")
+    mock_project.issues.get.assert_called_once_with(10)
+    mock_issue_to_move.reorder.assert_called_once_with(move_before_id=99)
